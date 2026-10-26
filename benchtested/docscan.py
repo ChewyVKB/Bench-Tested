@@ -129,6 +129,13 @@ class DocScanMixin:
         return s
 
     def docscan_devices_changed(self, devs):
+        docs = {d["key"]: d for d in devs if d["category"] == "docscan"}
+        for key in list(self.doc_state):
+            st = self.doc_state[key]
+            if (key not in docs or st.get("plug") != docs[key].get("plug")) and st["proc"] is None:
+                del self.doc_state[key]
+        for key, d in docs.items():
+            self.doc_info(d)["plug"] = d.get("plug")
         if any(d["category"] == "docscan" for d in devs) and not self.sane_loading:
             self.sane_cache = None
             self.doc_find_all()

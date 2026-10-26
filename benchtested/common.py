@@ -310,6 +310,9 @@ def scan_usb():
                 dv["lp"] = "/dev/usb/" + os.path.basename(lp)
     for dv in devs:
         dv["key"] = dv["serial"] or dv["sysdir"]
+        # changes every time the device is plugged in (USB gives it a new number), so a
+        # different unit in the same port - or the same unit replugged - starts fresh
+        dv["plug"] = f"{dv['sysdir']}@{read_file(dv['sysdir'] + '/devnum')}"
     order = {c: i for i, (c, _t) in enumerate(CATEGORIES)}
     devs.sort(key=lambda d: (order.get(d["category"], 99), d["brand"], d["product"], d["key"]))
     return devs

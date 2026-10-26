@@ -152,9 +152,15 @@ class CameraMixin:
         return s
 
     def camera_devices_changed(self, devs):
-        keys = {d["key"] for d in devs if d["category"] == "camera"}
-        if self.cam_live and self.cam_live not in keys:
-            self.cam_stop()
+        cams = {d["key"]: d for d in devs if d["category"] == "camera"}
+        for key in list(self.cam_state):
+            if key not in cams or self.cam_state[key].get("plug") != cams[key].get("plug"):
+                if self.cam_live == key:
+                    self.cam_stop()
+                del self.cam_state[key]           # new connection: look up its video node again
+                self.set_row_status(key, "")
+        for key, d in cams.items():
+            self.cam_info(d)["plug"] = d.get("plug")
 
     # ---------------------------------------------------------- page
     def build_camera_page(self):

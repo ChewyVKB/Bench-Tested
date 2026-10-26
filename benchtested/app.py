@@ -302,8 +302,9 @@ class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, SigPadMixin, Camer
     # ============================================================ device list
     def refresh_devices(self):
         devs = scan_usb()
-        sig = [(d["key"], d["lp"], d["category"]) for d in devs]
+        sig = [(d["key"], d["lp"], d["category"], d.get("plug")) for d in devs]
         if sig != self.dev_sig:
+            old_plug = next((d.get("plug") for d in self.devices if d["key"] == self.selected_key), None)
             first_time = self.dev_sig is None
             self.dev_sig = sig
             self.devices = devs
@@ -315,6 +316,12 @@ class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, SigPadMixin, Camer
             self.camera_devices_changed(devs)
             if not first_time:
                 self.in_thread(self.forget_unplugged_units)
+            cur = self.current()
+            if cur and old_plug and cur.get("plug") != old_plug:
+                # the selected device was swapped/replugged: show its fresh page
+                row = self.listbox.get_selected_row()
+                if row is not None:
+                    self.on_row_selected(self.listbox, row)
         return True
 
     def row_header(self, row, before):

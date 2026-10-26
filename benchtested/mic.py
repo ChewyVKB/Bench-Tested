@@ -57,12 +57,16 @@ class MicMixin:
     def mic_devices_changed(self, devs):
         mics = {d["key"]: d for d in devs if d["category"] == "mic"}
         for key in list(self.mic_state):
-            if key not in mics:
-                for w in self.mic_state[key]["watchers"]:
+            st = self.mic_state[key]
+            if key not in mics or st.get("plug") != mics[key].get("plug"):
+                # unplugged, or a different/replugged mic in the same port: start over
+                for w in st["watchers"]:
                     w.stop()
-                self.mic_state[key]["watchers"] = []
+                del self.mic_state[key]
+                self.set_row_status(key, "")
         for key, d in mics.items():
             s = self.mic_info(d)
+            s["plug"] = d.get("plug")
             if not s["watchers"]:
                 nodes = event_nodes(d["sysdir"])
                 tb = find_trackball(d)
@@ -83,6 +87,10 @@ class MicMixin:
         d = self.device(key)
         if d:
             self.mic_info(d)["input"] = st
+            if st == "gone":                     # its connection went away - reconnect next time
+                for w in self.mic_info(d)["watchers"]:
+                    w.stop()
+                self.mic_info(d)["watchers"] = []
             if key == self.selected_key:
                 self.mic_refresh_page(d)
         return False

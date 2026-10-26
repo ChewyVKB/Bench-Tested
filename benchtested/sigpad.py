@@ -200,12 +200,16 @@ class SigPadMixin:
 
     def sigpad_devices_changed(self, devs):
         pads = {d["key"]: d for d in devs if d["category"] == "sigpad"}
-        for key, s in self.pad_state.items():
-            if key not in pads and s["reader"]:
-                s["reader"].stop()
-                s["reader"] = None
+        for key in list(self.pad_state):
+            s = self.pad_state[key]
+            if key not in pads or s.get("plug") != pads[key].get("plug"):
+                if s["reader"]:                     # unplugged or swapped: start over
+                    s["reader"].stop()
+                del self.pad_state[key]
+                self.set_row_status(key, "")
         for key, d in pads.items():
             s = self.pad_info(d)
+            s["plug"] = d.get("plug")
             if s["reader"] is None and d["vid"] == "0403":
                 s["reader"] = PadReader(d, lambda p, k=key: GLib.idle_add(self.pad_points, k, p),
                                         lambda st, k=key: GLib.idle_add(self.pad_state_changed, k, st),

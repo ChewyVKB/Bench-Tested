@@ -451,8 +451,11 @@ class BarcodeMixin:
     def barcode_devices_changed(self, devs):
         scanners = {d["key"]: d for d in devs if d["category"] == "scanner"}
         for key in list(self.listeners):
-            if key not in scanners:
+            if key not in scanners or self.listeners[key].d.get("plug") != scanners[key].get("plug"):
                 self.listeners.pop(key).stop()
+                if key not in scanners or not scanners[key]["serial"]:
+                    self.scan_state.pop(key, None)       # a different unit: fresh results
+                    self.set_row_status(key, "")
         for key, d in scanners.items():
             if key not in self.listeners or self.listeners[key].stop_flag:
                 self.listeners[key] = ScannerListener(d, self._on_scan_thread, self._on_state_thread)
