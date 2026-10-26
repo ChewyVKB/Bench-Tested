@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Bench Tested
+GenericName=Device Tester
+Comment=Test label printers, barcode scanners and other devices
+Exec=@BIN@
+Icon=applications-engineering
+Terminal=false
+Categories=Utility;
+Keywords=zebra;dymo;label;printer;barcode;scanner;test;

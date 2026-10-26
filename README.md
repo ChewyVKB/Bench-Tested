@@ -1,42 +1,56 @@
-# Label Printer Tester
+# Bench Tested
 
-A small desktop app for Ubuntu that tests **Zebra** and **Dymo** label printers: plug one in, click **Print test label**, and get a full-size, timestamped test label that shows whether the printer really works.
+A desktop testing bench for Ubuntu. Plug in a device, pick it from the list, and test it. Every test leaves **timestamped proof** that the unit works.
 
-I built it for testing used printers before reselling them. It's just as useful for checking a printer after repairs, or for setting up a label station.
+I built it for testing used equipment before reselling it. It's just as handy for checking gear after repairs or setting up a workstation.
+
+**Supported devices right now:**
+- **Label printers:** Zebra (ZPL/EPL) and Dymo LabelWriter
+- **Barcode scanners:** Symbol/Zebra, Honeywell, Datalogic, Opticon, Newland, and other USB scanners
+
+**Coming next:** cameras and conference hubs, dictation microphones, signature pads, document scanners.
 
 ![Dymo test labels](docs/dymo-test-labels.png)
 
 ## Features
 
-**General**
-- Connected Zebra and Dymo printers appear automatically over USB. There's nothing to configure.
-- **Print several printers at once:** tick them in the list (Zebras and Dymos mixed) and click **Print checked**. Each one prints with its own settings and shows its own status.
-- Every test label is **timestamped**, so you have proof of when each unit was tested.
-- Each test label includes:
+### Everywhere
+- Plugged-in devices appear on their own, grouped by type. Each device has its own page.
+- One shared **Activity** log, and a live status line for every device.
+- Several devices can work at the same time. Only the device that's busy is locked.
+
+### Label printers
+- **Zebra:**
+  - **factory reset** (also re-measures the labels)
+  - **auto-detects label size and resolution**
+  - prints a full-size test label at any size
+  - shows the **serial number, head usage (odometer) and firmware**
+- **Dymo:**
+  - installs the driver the first time it's needed, and sets each model up **once**
+  - pick the loaded roll by **Dymo item number** (30251/30252, 30256, 30334…)
+- Every test label includes:
+  - the date and time
   - a scannable barcode
-  - a **printhead check band** of thin diagonal lines that crosses every dot on the printhead, so a dead dot shows as a line of gaps without the power draw of a solid black block
-- **Clean up printers** removes old USB printer entries for units that are no longer connected. Network and office printers are never selected automatically.
+  - a **printhead check band** that crosses every dot on the printhead, so dead dots show up as gaps without the power draw of a solid black block
+- **Print checked** prints on all ticked printers at once. Zebras and Dymos can be mixed, each with its own settings.
+- **Clean up printers** removes entries for printers that are no longer connected. Office and network printers are never selected automatically.
 
-**Zebra (ZPL and EPL)**
-- Talks to the printer directly over USB. No driver needed.
-- **Factory reset** before testing, which also re-measures the labels.
-- **Auto-detects the label size** and resolution, then prints a test label that fills the label. The layout adapts to the size, from 1 in to 4×6.
-- 4×6 and other tall labels also show the printer's **serial number, head usage (odometer) and firmware**, which is handy for listings.
-- Buttons for printer info, the printer's own config label, calibration, and factory reset.
-- Older EPL printers (LP/TLP 2844) are supported, with the label size picked manually.
-
-**Dymo LabelWriter**
-- Installs the Dymo driver (`printer-driver-dymo`) the first time it's needed.
-- Each model is set up **once**. Every unit of that model you plug in afterward is ready immediately.
-- Pick the loaded roll by **Dymo item number** (30251/30252 Address, 30256 Shipping, 30334, …). The choice is remembered per model.
-- With several identical Dymos plugged in at the same time, each one automatically gets its own entry so every label comes out of the right printer.
-- Shows a warning if a job gets stuck in the print queue, plus a button to clear it.
+### Barcode scanners
+- **Live scan view per scanner.** Scans are labeled with the scanner that sent them, so you can test several at once. Scans don't leak into other windows.
+- **Test codes** on screen, with automatic ✓ checks:
+  - 1D: Code 128, Code 39, UPC-A, EAN-13
+  - 2D: QR, Data Matrix, PDF417
+- A summary shows whether a scanner reads 1D only or 1D and 2D.
+- **Print a test sheet** on a Zebra (as many labels as needed) or on any office printer. Laser scanners can't read screens, so they need the printed sheet.
+- Shows how the scanner is connected (USB keyboard, serial/COM port, or HID POS) and warns when it isn't sending scans as typing.
+- **Factory reset code library:** add a model's reset barcode once (a screenshot or PDF from its manual), and it shows up automatically for every scanner of that model.
 
 ## Requirements
 
-- Ubuntu 22.04 or newer (other Debian-based distros with GNOME/GTK should work too)
-- Python 3 with GTK 3 bindings (`python3-gi`, `gir1.2-gtk-3.0`), which come preinstalled on Ubuntu Desktop
+- Ubuntu 22.04 or newer (other Debian-based GNOME desktops should work)
+- Python 3 with GTK 3 (`python3-gi`, `gir1.2-gtk-3.0`), preinstalled on Ubuntu Desktop
 - CUPS (preinstalled), used for Dymo printers
+- `zint` (installed by the installer), which draws the 2D test codes
 
 ## Install
 
@@ -47,24 +61,34 @@ cd <repo>
 ```
 
 The installer:
-- copies the app to `~/.local/bin`
-- adds **Label Printer Tester** to your app menu
-- installs any missing requirements
-- adds you to the `lp` group so the app can talk to USB printers
+- copies the app to `~/.local/share/bench-tested`
+- adds **Bench Tested** to your app menu, plus a `bench-tested` command
+- installs anything missing
+- gives your user access to USB devices (see the next section)
 
 **Log out and back in once** after the first install.
 
 To uninstall: `./uninstall.sh`
 
+### About device access
+
+The installer adds you to three groups. You can skip any of them; the related feature just works more simply.
+
+| Group | Why | Without it |
+|---|---|---|
+| `lp` | Talk to Zebra printers over USB | Zebra printing doesn't work |
+| `input` | See which scanner sent each scan | Scans still work: click the box on the scanner page and scan |
+| `dialout` | Read scanners set to serial/COM-port mode | Those scanners can't be read |
+
+Being in `input` lets programs you run read keyboards and other input devices. That's normal for a dedicated test bench. Skip it on a shared computer if that's a concern.
+
 ## Usage
 
-1. Plug in a printer and turn it on. It shows up in the list on the left. If it doesn't, click **Refresh printers**.
-2. Select it and choose its options:
-   - **Zebra:** what to do before printing (factory reset, calibration, or nothing). Label size and resolution are detected automatically.
-   - **Dymo:** which labels are loaded.
-3. Click **Print test label**. To test several at once, tick them and click **Print checked**.
-
-Everything that happens is shown in the **Activity** panel.
+1. Plug in a device. It shows up on the left. If it doesn't, click **Refresh devices**.
+2. Click it to open its page.
+3. Run its test:
+   - **Printers:** click **Print test label**, or tick several printers and click **Print checked**.
+   - **Scanners:** scan the test codes on screen or on a printed sheet, and watch the ✓ marks fill in.
 
 ## Troubleshooting
 
@@ -72,21 +96,25 @@ Everything that happens is shown in the **Activity** panel.
 |---|---|
 | Zebra shows "not available as /dev/usb/lp*" | Unplug it and plug it back in. If that doesn't help, run `sudo modprobe usblp` |
 | "No permission to use /dev/usb/lp…" | Run `sudo usermod -aG lp $USER`, then log out and back in |
-| Zebra faults (red light) partway through a label | Usually a weak or non-original power supply. Check the power brick. |
+| Zebra faults (red light) partway through a label | Usually a weak or non-original power supply |
 | Dymo says "sent" but nothing prints | Click **Set up again**, then **Clear print queue**, and check that labels are loaded |
-| Dymo LabelWriter 550 series | Not supported well on Linux. These only print on genuine RFID-chipped Dymo rolls. |
-| Zebra label size not detected | Run **Calibrate**, or pick the size manually. The printer's raw reply is saved in `~/.cache/label-printer-test-last.txt` |
+| Dymo LabelWriter 550 series | Poor Linux support. These only print on genuine RFID-chipped Dymo rolls. |
+| Scanner listed, but scans don't appear | It may be in HID POS/OPOS mode. Scan its **factory reset** or "USB keyboard" code. |
+| Laser scanner won't read the screen | Normal. Use **Print test sheet…** |
 
 ## How it works
 
-- **Zebra:** sends ZPL/EPL straight to `/dev/usb/lp*`.
+- **Zebra:** ZPL/EPL sent straight to `/dev/usb/lp*`.
   - Factory reset: `^JUF` then `^JUS`
   - Calibration: `~JC`
   - Label size and info: read from the printer's `^HH` configuration reply
-- **Dymo:** builds a PostScript page at the exact label size and prints it through CUPS with the official Dymo driver.
-- **Settings:** stored in `~/.config/label-printer-test.json`.
+- **Dymo:** a PostScript page at the exact label size, printed through CUPS with the official Dymo driver.
+- **Scanners:**
+  - keyboard-mode scanners are read from `/dev/input` and kept from typing into other windows while Bench Tested runs
+  - serial-mode scanners are read from `/dev/ttyACM*`
+- **Settings:** stored in `~/.config/bench-tested.json`. Reset codes are stored in `~/.local/share/bench-tested/reset-codes/`.
 
-The whole app is a single Python file (`label-printer-test`) with no dependencies beyond what Ubuntu ships.
+Pure Python + GTK, with no dependencies beyond what Ubuntu ships (plus `zint` for 2D codes).
 
 ## License
 

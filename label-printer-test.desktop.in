@@ -1,9 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=Label Printer Tester
-Comment=Test-print Zebra and Dymo label printers
-Exec=@BIN@
-Icon=printer
-Terminal=false
-Categories=Utility;
-Keywords=zebra;dymo;label;printer;test;

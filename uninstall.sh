@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
-# Removes Label Printer Tester. Printers it set up in CUPS are left alone -
-# remove those first with "Clean up printers..." in the app if you want.
+# Removes Bench Tested. Printers it set up in CUPS are left alone - remove them
+# first with "Clean up printers…" in the app if you want.
 set -eu
-rm -f "$HOME/.local/bin/label-printer-test"
-rm -f "$HOME/.local/share/applications/label-printer-test.desktop"
-read -r -p "Also delete saved settings (~/.config/label-printer-test.json)? [y/N] " a
-case "$a" in [yY]*) rm -f "$HOME/.config/label-printer-test.json" "$HOME/.cache/label-printer-test-last.txt" ;; esac
-echo "Label Printer Tester removed."
+rm -rf "$HOME/.local/share/bench-tested/lib"
+rm -f "$HOME/.local/bin/bench-tested" "$HOME/.local/share/applications/bench-tested.desktop"
+read -r -p "Also delete saved settings and reset codes? [y/N] " a
+case "$a" in [yY]*)
+    rm -rf "$HOME/.local/share/bench-tested"
+    rm -f "$HOME/.config/bench-tested.json" "$HOME/.cache/label-printer-test-last.txt" ;;
+esac
+echo "Bench Tested removed."
