@@ -213,7 +213,9 @@ def classify(vid, product, ifaces):
     classes = {c for c, _s, _p in ifaces}
     if vid in SKIP_VENDORS:
         return None
-    if vid in DOCSCAN_VENDORS and re.search(DOCSCAN_VENDORS[vid][1], product, re.I):
+    if vid in DOCSCAN_VENDORS and (re.search(DOCSCAN_VENDORS[vid][1], product, re.I) or
+                                   (vid in ("04c5", "05ca") and "ff" in classes and
+                                    not re.search(r"finger|keyboard|mouse|reader", product, re.I))):
         return "docscan"
     if (vid in MIC_VENDORS or re.search(MIC_NAMES, product, re.I)) and "01" in classes:
         return "mic"
@@ -231,6 +233,22 @@ def classify(vid, product, ifaces):
     return None
 
 
+_DB_NAMES = {}
+
+
+def db_names(sysdir):
+    """Vendor/model names from Ubuntu's device database, for devices that don't
+    report their own name over USB (some scanners)."""
+    if sysdir not in _DB_NAMES:
+        props = {}
+        r = run(["udevadm", "info", "-q", "property", "-p", sysdir], timeout=5)
+        for line in r.stdout.splitlines():
+            k, _, v = line.partition("=")
+            props[k] = v
+        _DB_NAMES[sysdir] = (props.get("ID_VENDOR_FROM_DATABASE", ""), props.get("ID_MODEL_FROM_DATABASE", ""))
+    return _DB_NAMES[sysdir]
+
+
 def scan_usb():
     """Supported devices that are plugged in, read straight from sysfs."""
     devs = []
@@ -241,6 +259,9 @@ def scan_usb():
         if not vid:
             continue
         product = read_file(d + "/product")
+        if not product and (vid in DOCSCAN_VENDORS or vid in MIC_VENDORS or vid in SCANNER_VENDORS
+                            or vid in PRINTER_VENDORS):
+            product = db_names(os.path.realpath(d))[1]
         ifaces = usb_interfaces(d)
         cat = classify(vid, product, ifaces)
         if not cat:

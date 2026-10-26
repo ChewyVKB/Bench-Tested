@@ -136,7 +136,7 @@ class MicMixin:
         b1 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         b1.set_border_width(10)
         f1.add(b1)
-        b1.pack_start(lbl("Click <b>Record &amp; play back</b>, talk into the mic for 5 seconds, "
+        b1.pack_start(lbl("Click <b>Record &amp; play back</b>, talk into the mic for 3 seconds, "
                           "then listen: your recording plays through the mic's own speaker - "
                           "one test for both.", markup=True, wrap=True), False, False, 0)
         self.m_level = Gtk.LevelBar()
@@ -145,7 +145,7 @@ class MicMixin:
         self.m_level.set_size_request(-1, 18)
         b1.pack_start(self.m_level, False, False, 0)
         row = Gtk.Box(spacing=8)
-        self.m_rec = Gtk.Button(label="Record & play back (5 s)")
+        self.m_rec = Gtk.Button(label="Record & play back (3 s)")
         self.m_rec.get_style_context().add_class("suggested-action")
         self.m_rec.connect("clicked", lambda *_: self.current() and
                            self.task(self.current(), self.mic_record_test, self.current()))
@@ -277,12 +277,12 @@ class MicMixin:
             return False
         safe = re.sub(r"\W", "", d["key"])
         path = os.path.join(tempfile.gettempdir(), f"bench-tested-mic-{safe}.wav")
-        self.log("Recording for 5 seconds - talk into the mic now…")
+        self.log("Recording for 3 seconds - talk into the mic now…")
 
         def level(db):
             GLib.idle_add(lambda: (d["key"] == self.selected_key and
                                    self.m_level.set_value(clamp((db + 60) / 60, 0, 1)), False)[1])
-        peak, err = a.record(path, 5, on_level=level)
+        peak, err = a.record(path, 3, on_level=level)
         GLib.idle_add(lambda: (self.m_level.set_value(0), False)[1])
         if err:
             self.log("Recording failed: " + err)
