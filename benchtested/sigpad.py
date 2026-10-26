@@ -21,9 +21,8 @@ PROOF_DIR = os.path.expanduser("~/Pictures/Bench Tested")
 
 def parse_topaz(buf, seven_bit=False):
     """Pull complete packets out of buf. Returns (points, leftover) with points as
-    (pen_down, x, y). Packets are 5 bytes: a status byte (0xE4/0xE5 - both are sent
-    while writing; the pad only sends while the pen is on it), then x low/high and
-    y low/high, 7 bits each. If the port hands over 7-bit bytes, the status byte is
+    (pen_down, x, y). Packets are 5 bytes: a status byte (0xE5 = pen touching,
+    0xE4 = pen hovering near the pad), then x low/high and y low/high, 7 bits each. If the port hands over 7-bit bytes, the status byte is
     recognised by value (0x64/0x65) and confirmed by the next packet."""
     pts, i, n = [], 0, len(buf)
     while i < n:
@@ -46,8 +45,9 @@ def parse_topaz(buf, seven_bit=False):
             if any(b & 0x80 for b in buf[i + 1:i + 5]):
                 i += 1
                 continue
-        _s, xl, xh, yl, yh = buf[i:i + 5]
-        pts.append((True, (xl & 0x7f) | (xh & 0x7f) << 7, (yl & 0x7f) | (yh & 0x7f) << 7))
+        st, xl, xh, yl, yh = buf[i:i + 5]
+        # status bit 0: 1 = pen touching (0xE5), 0 = pen hovering near the pad (0xE4)
+        pts.append((bool(st & 1), (xl & 0x7f) | (xh & 0x7f) << 7, (yl & 0x7f) | (yh & 0x7f) << 7))
         i += 5
     return pts, buf[i:][-64:]
 
@@ -193,7 +193,7 @@ class SigPadMixin:
         if s is None:
             b = self.cfg.get("sigpad_bounds", {}).get(norm(d["product"]) or "topaz")
             s = {"strokes": [], "reader": None, "state": "starting", "points": 0,
-                 "bounds": list(b or TOPAZ_DEFAULT_BOUNDS), "seen": None, "pen_was_down": False,
+                 "bounds": list(b or TOPAZ_DEFAULT_BOUNDS), "seen": None, "pen_was_down": False, "hover": None,
                  "last_t": 0.0}
             self.pad_state[d["key"]] = s
         return s
@@ -238,9 +238,11 @@ class SigPadMixin:
         if now - s["last_t"] > 0.15:      # pen was lifted long enough to start a new stroke
             s["pen_was_down"] = False
         for down, x, y in pts:
-            if not down:
+            if not down:                       # hovering: show where the pen is, don't draw
                 s["pen_was_down"] = False
+                s["hover"] = (x, y)
                 continue
+            s["hover"] = None
             if x < b[0] or y < b[1] or x > b[2] or y > b[3]:    # pad reports a bigger area
                 b[0], b[1], b[2], b[3] = min(b[0], x), min(b[1], y), max(b[2], x), max(b[3], y)
             if not s["pen_was_down"] or not s["strokes"]:
@@ -252,6 +254,8 @@ class SigPadMixin:
             s["seen"] = [x, y, x, y] if sx is None else [min(sx[0], x), min(sx[1], y),
                                                          max(sx[2], x), max(sx[3], y)]
         s["last_t"] = now
+        if key == self.selected_key and any(not p[0] for p in pts):
+            self.p_canvas.queue_draw()
         if s["points"] and not s.get("logged"):
             s["logged"] = True
             self.log(f"[{short_name(d)}] pen writing detected ✓")
@@ -404,6 +408,11 @@ class SigPadMixin:
                 x, y = f(*stroke[0])
                 cr.line_to(x + 0.5, y)
             cr.stroke()
+        if s.get("hover"):                     # pen near the pad but not touching
+            hx, hy = f(*s["hover"])
+            cr.set_source_rgba(0.9, 0.3, 0.1, 0.8)
+            cr.arc(hx, hy, 4, 0, 6.2832)
+            cr.fill()
         return False
 
     def pad_clear(self):
@@ -411,7 +420,7 @@ class SigPadMixin:
         if not d:
             return
         s = self.pad_info(d)
-        s.update(strokes=[], points=0, seen=None, logged=False)
+        s.update(strokes=[], points=0, seen=None, logged=False, hover=None)
         self.set_row_status(d["key"], "")
         self.pad_refresh(d)
         self.p_canvas.queue_draw()
