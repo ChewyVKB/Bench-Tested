@@ -14,10 +14,21 @@ if ! python3 -c 'import gi; gi.require_version("Gtk", "3.0"); from gi.repository
     pkgs+=(python3-gi gir1.2-gtk-3.0)
 fi
 command -v lpstat >/dev/null || pkgs+=(cups-client)
-command -v zint >/dev/null || pkgs+=(zint)          # draws the scanner test codes
-if ((${#pkgs[@]})); then
-    echo "    Installing: ${pkgs[*]}"
-    sudo apt-get install -y "${pkgs[@]}" || echo "    (Some packages didn't install - the app still runs.)"
+command -v zint >/dev/null || pkgs+=(zint)          # draws the barcode test codes
+command -v scanimage >/dev/null || pkgs+=(sane-utils)   # document scanners
+command -v arecord >/dev/null || pkgs+=(alsa-utils)     # dictation mic fallback
+command -v pw-dump >/dev/null || pkgs+=(pipewire-bin)   # finds each device's mic/speaker
+if ! python3 -c 'import gi; gi.require_version("Gst", "1.0"); from gi.repository import Gst' 2>/dev/null; then
+    pkgs+=(gir1.2-gstreamer-1.0)
+fi
+pkgs+=(gstreamer1.0-plugins-good gstreamer1.0-pipewire)  # recording + live level meter (usually already there)
+missing=()
+for p in "${pkgs[@]}"; do dpkg -s "$p" >/dev/null 2>&1 || missing+=("$p"); done
+if ((${#missing[@]})); then
+    echo "    Installing: ${missing[*]}"
+    for p in "${missing[@]}"; do      # one at a time, so one unavailable package can't block the rest
+        sudo apt-get install -y "$p" >/dev/null || echo "    Couldn't install $p - the app still runs without it."
+    done
 fi
 
 echo "==> Installing Bench Tested"
@@ -42,8 +53,8 @@ add_group() {   # group, reason
     fi
 }
 add_group lp      "talk to USB label printers"
-add_group input   "tell barcode scanners apart and see each one's scans"
-add_group dialout "read scanners that are set to serial/COM-port mode"
+add_group input   "see each scanner's scans and the dictation mic buttons"
+add_group dialout "read serial-mode scanners and signature pads"
 
 echo
 echo "Done! Open 'Bench Tested' from your app menu, or run: bench-tested"

@@ -28,10 +28,27 @@ ENV_C = dict(os.environ, LC_ALL="C", LANG="C")
 CATEGORIES = [
     ("printer", "Label Printers"),
     ("scanner", "Barcode Scanners"),
+    ("mic", "Dictation Mics"),
+    ("docscan", "Document Scanners"),
 ]
 CATEGORY_TITLES = dict(CATEGORIES)
 
 PRINTER_VENDORS = {"0a5f": "Zebra", "0922": "Dymo"}
+# dictation mics: vendor -> name (product name checked too)
+MIC_VENDORS = {"0554": "Nuance", "0911": "Philips"}
+MIC_NAMES = r"powermic|speechmike|speechone|dictation|recmic|foot ?control"
+# document scanners: vendor -> (name, product pattern)
+DOCSCAN_VENDORS = {
+    "04c5": ("Fujitsu", r"fi-|scansnap|scanner"),
+    "05ca": ("Ricoh / PFU", r"fi-|scansnap|scanner"),
+    "1083": ("Canon", r"DR-|scanner"),
+    "04f9": ("Brother", r"ADS-"),
+    "04b8": ("Epson", r"\bDS-|scanner"),
+    "040a": ("Kodak Alaris", r"scanner|\bi\d{3,4}\b|\bS\d{4}"),
+    "0638": ("Avision", r"scanner|\bAD\d"),
+}
+SKIP_VENDORS = {"df04"}   # PowerMic trackball - shown as part of the mic
+
 SCANNER_VENDORS = {
     "05e0": "Symbol / Zebra",
     "0c2e": "Honeywell",
@@ -194,6 +211,14 @@ def usb_interfaces(sysdir):
 def classify(vid, product, ifaces):
     """Which category a USB device belongs to (or None)."""
     classes = {c for c, _s, _p in ifaces}
+    if vid in SKIP_VENDORS:
+        return None
+    if vid in DOCSCAN_VENDORS and re.search(DOCSCAN_VENDORS[vid][1], product, re.I):
+        return "docscan"
+    if (vid in MIC_VENDORS or re.search(MIC_NAMES, product, re.I)) and "01" in classes:
+        return "mic"
+    if vid in MIC_VENDORS and re.search(MIC_NAMES, product, re.I):
+        return "mic"
     if vid in PRINTER_VENDORS and ("07" in classes or re.search(r"label", product, re.I)):
         return "printer"
     if "07" in classes:
@@ -222,6 +247,10 @@ def scan_usb():
             continue
         if cat == "printer":
             brand = PRINTER_VENDORS[vid]
+        elif cat == "docscan":
+            brand = DOCSCAN_VENDORS[vid][0]
+        elif cat == "mic":
+            brand = MIC_VENDORS.get(vid) or read_file(d + "/manufacturer") or "Mic"
         else:
             brand = SCANNER_VENDORS.get(vid) or read_file(d + "/manufacturer") or "Scanner"
         devs.append({

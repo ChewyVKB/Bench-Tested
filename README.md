@@ -7,8 +7,10 @@ I built it for testing used equipment before reselling it. It's just as handy fo
 **Supported devices right now:**
 - **Label printers:** Zebra (ZPL/EPL) and Dymo LabelWriter
 - **Barcode scanners:** Symbol/Zebra, Honeywell, Datalogic, Opticon, Newland, and other USB scanners
+- **Dictation mics:** Nuance PowerMic, Philips SpeechMike, and similar
+- **Document scanners:** Fujitsu fi-series and ScanSnap, plus other scanners Ubuntu's scanner support (SANE) knows
 
-**Coming next:** cameras and conference hubs, dictation microphones, signature pads, document scanners.
+**Coming next:** cameras and conference hubs, signature pads.
 
 ![Dymo test labels](docs/dymo-test-labels.png)
 
@@ -45,12 +47,27 @@ I built it for testing used equipment before reselling it. It's just as handy fo
 - Shows how the scanner is connected (USB keyboard, serial/COM port, or HID POS) and warns when it isn't sending scans as typing.
 - **Factory reset code library:** add a model's reset barcode once (a screenshot or PDF from its manual), and it shows up automatically for every scanner of that model.
 
+### Dictation mics
+- **Record & play back:** talk for 5 seconds and hear the recording through the mic's **own speaker**, which tests the mic and the speaker in one go. A live level meter shows the mic picking you up.
+- Recording only ever uses the device being tested, never the computer's built-in mic, so a pass really means this mic works.
+- A test tone for the speaker, and the option to play the recording on the computer instead.
+- **Press-each-button checklist:** every button that works is ticked off as you press it.
+- **Trackball check** on PowerMics: rolls, left click, right click.
+
+### Document scanners
+- Scans the whole stack in the feeder (front, back or both sides) and shows each page as it comes in.
+- Flags **blank pages** and **dark lines running down the page** (dirty glass or a bad sensor). Include a blank white sheet for the most reliable streak check.
+- Every scan is saved as timestamped proof in `~/Pictures/Bench Tested/`. Click a page to open it full size.
+
 ## Requirements
 
 - Ubuntu 22.04 or newer (other Debian-based GNOME desktops should work)
 - Python 3 with GTK 3 (`python3-gi`, `gir1.2-gtk-3.0`), preinstalled on Ubuntu Desktop
 - CUPS (preinstalled), used for Dymo printers
-- `zint` (installed by the installer), which draws the 2D test codes
+- Installed by the installer if missing:
+  - `zint` draws the barcode test codes
+  - `sane-utils` runs document scanners
+  - GStreamer and PipeWire tools handle mic recording and playback
 
 ## Install
 
@@ -77,8 +94,8 @@ The installer adds you to three groups. You can skip any of them; the related fe
 | Group | Why | Without it |
 |---|---|---|
 | `lp` | Talk to Zebra printers over USB | Zebra printing doesn't work |
-| `input` | See which scanner sent each scan | Scans still work: click the box on the scanner page and scan |
-| `dialout` | Read scanners set to serial/COM-port mode | Those scanners can't be read |
+| `input` | See which scanner sent each scan, and read dictation-mic buttons | Scans still work (click the box on the scanner page and scan), but mic buttons can't be tested |
+| `dialout` | Read serial-mode scanners and signature pads | Those devices can't be read |
 
 Being in `input` lets programs you run read keyboards and other input devices. That's normal for a dedicated test bench. Skip it on a shared computer if that's a concern.
 
@@ -101,6 +118,9 @@ Being in `input` lets programs you run read keyboards and other input devices. T
 | Dymo LabelWriter 550 series | Poor Linux support. These only print on genuine RFID-chipped Dymo rolls. |
 | Scanner listed, but scans don't appear | It may be in HID POS/OPOS mode. Scan its **factory reset** or "USB keyboard" code. |
 | Laser scanner won't read the screen | Normal. Use **Print test sheet…** |
+| Mic buttons don't register | Log out and back in once after installing, so the `input` group takes effect |
+| Mic recording fails | The Activity log shows which sound device was found. Unplug and replug the mic, then try again. |
+| Document scanner says it isn't found | Make sure it's switched on, then click **Look for scanner again**. Check that `scanimage -L` lists it. |
 
 ## How it works
 
@@ -112,6 +132,8 @@ Being in `input` lets programs you run read keyboards and other input devices. T
 - **Scanners:**
   - keyboard-mode scanners are read from `/dev/input` and kept from typing into other windows while Bench Tested runs
   - serial-mode scanners are read from `/dev/ttyACM*`
+- **Dictation mics:** the mic's own sound card is found through sysfs and PipeWire, then recorded and played with GStreamer (or `arecord`/`aplay`). Buttons and trackball are read from `/dev/input`.
+- **Document scanners:** `scanimage` (SANE) in batch mode. Pages are analyzed for blank pages and vertical streaks.
 - **Settings:** stored in `~/.config/bench-tested.json`. Reset codes are stored in `~/.local/share/bench-tested/reset-codes/`.
 
 Pure Python + GTK, with no dependencies beyond what Ubuntu ships (plus `zint` for 2D codes).
