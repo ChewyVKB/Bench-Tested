@@ -19,30 +19,37 @@ TOPAZ_DEFAULT_BOUNDS = (500, 350, 2650, 1050)    # x0, y0, x1, y1 - grows if the
 PROOF_DIR = os.path.expanduser("~/Pictures/Bench Tested")
 
 
-def parse_topaz(buf):
+def parse_topaz(buf, seven_bit=False):
     """Pull complete packets out of buf. Returns (points, leftover) with points as
-    (pen_down, x, y). The status byte normally has its top bit set; if the port hands
-    us 7-bit bytes instead, the status byte is recognised by its value (0x64/0x65)."""
+    (pen_down, x, y). Packets are 5 bytes: a status byte (0xE4/0xE5 - both are sent
+    while writing; the pad only sends while the pen is on it), then x low/high and
+    y low/high, 7 bits each. If the port hands over 7-bit bytes, the status byte is
+    recognised by value (0x64/0x65) and confirmed by the next packet."""
     pts, i, n = [], 0, len(buf)
-    seven_bit = n >= 30 and not any(b & 0x80 for b in buf)
     while i < n:
         b0 = buf[i]
         if seven_bit:
-            start = b0 in (0x64, 0x65) and (i + 5 >= n or buf[i + 5] in (0x64, 0x65))
+            if b0 not in (0x64, 0x65):
+                i += 1
+                continue
+            if i + 6 > n:
+                break                                   # wait to confirm with the next packet
+            if buf[i + 5] not in (0x64, 0x65):
+                i += 1
+                continue
         else:
-            start = bool(b0 & 0x80) and not any(b & 0x80 for b in buf[i + 1:i + 5])
-        if not start:
-            i += 1
-            continue
-        if i + 5 > n:
-            break
-        s, xl, xh, yl, yh = buf[i:i + 5]
-        pts.append((bool(s & 1), (xl & 0x7f) | (xh & 0x7f) << 7, (yl & 0x7f) | (yh & 0x7f) << 7))
+            if not b0 & 0x80:
+                i += 1
+                continue
+            if i + 5 > n:
+                break
+            if any(b & 0x80 for b in buf[i + 1:i + 5]):
+                i += 1
+                continue
+        _s, xl, xh, yl, yh = buf[i:i + 5]
+        pts.append((True, (xl & 0x7f) | (xh & 0x7f) << 7, (yl & 0x7f) | (yh & 0x7f) << 7))
         i += 5
-    left = buf[i:]
-    if seven_bit and len(left) > 64:      # never let junk pile up
-        left = left[-10:]
-    return pts, left
+    return pts, buf[i:][-64:]
 
 
 def port_users(node):
@@ -106,10 +113,12 @@ class PadReader:
             pass
 
     def _open(self, node):
-        """Configure first (so the port is never in 'wait for carrier' mode), then open."""
-        run(["stty", "-F", node] + self.STTY, timeout=5)
+        """Configure with stty first (exactly the settings proven to give clean data, and
+        never in 'wait for carrier' mode), then open. termios is only a fallback."""
+        ok = run(["stty", "-F", node] + self.STTY, timeout=5).returncode == 0
         fd = os.open(node, os.O_RDONLY | os.O_NOCTTY | os.O_NONBLOCK)
-        self._configure(node, fd)
+        if not ok:
+            self._configure(node, fd)
         return fd
 
     def _run(self):
@@ -128,7 +137,7 @@ class PadReader:
             return
         others = port_users(node)
         self.on_state("busy:" + ", ".join(others) if others else "listening")
-        buf, total, last_report, tail, empties = b"", 0, 0.0, b"", 0
+        buf, total, last_report, tail, empties, saw_high = b"", 0, 0.0, b"", 0, False
         try:
             while not self.stop_flag:
                 r, _w, _x = select.select([fd], [], [], 0.05)
@@ -163,7 +172,9 @@ class PadReader:
                     last_report = time.time()
                     self.on_raw(total, tail)
                 buf += chunk
-                pts, buf = parse_topaz(buf)
+                if any(b & 0x80 for b in chunk):
+                    saw_high = True
+                pts, buf = parse_topaz(buf, seven_bit=not saw_high and total > 40)
                 if pts:
                     self.on_points(pts)
         finally:
