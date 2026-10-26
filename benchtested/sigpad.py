@@ -21,22 +21,28 @@ PROOF_DIR = os.path.expanduser("~/Pictures/Bench Tested")
 
 def parse_topaz(buf):
     """Pull complete packets out of buf. Returns (points, leftover) with points as
-    (pen_down, x, y)."""
+    (pen_down, x, y). The status byte normally has its top bit set; if the port hands
+    us 7-bit bytes instead, the status byte is recognised by its value (0x64/0x65)."""
     pts, i, n = [], 0, len(buf)
+    seven_bit = n >= 30 and not any(b & 0x80 for b in buf)
     while i < n:
-        if not buf[i] & 0x80:
+        b0 = buf[i]
+        if seven_bit:
+            start = b0 in (0x64, 0x65) and (i + 5 >= n or buf[i + 5] in (0x64, 0x65))
+        else:
+            start = bool(b0 & 0x80) and not any(b & 0x80 for b in buf[i + 1:i + 5])
+        if not start:
             i += 1
             continue
         if i + 5 > n:
             break
-        body = buf[i + 1:i + 5]
-        if any(b & 0x80 for b in body):
-            i += 1
-            continue
         s, xl, xh, yl, yh = buf[i:i + 5]
         pts.append((bool(s & 1), (xl & 0x7f) | (xh & 0x7f) << 7, (yl & 0x7f) | (yh & 0x7f) << 7))
         i += 5
-    return pts, buf[i:]
+    left = buf[i:]
+    if seven_bit and len(left) > 64:      # never let junk pile up
+        left = left[-10:]
+    return pts, left
 
 
 def tty_nodes(sysdir):
@@ -48,15 +54,38 @@ def tty_nodes(sysdir):
 
 
 class PadReader:
-    """Reads a Topaz serial pad in the background; on_points(list) / on_state(str)."""
+    """Reads a Topaz serial pad in the background.
+    on_points(list), on_state(str), on_raw(total_bytes, last_bytes)."""
 
-    def __init__(self, d, on_points, on_state):
+    STTY = ["19200", "cs7", "parenb", "parodd", "-cstopb", "raw", "-echo"]
+
+    def __init__(self, d, on_points, on_state, on_raw=None):
         self.d, self.on_points, self.on_state = d, on_points, on_state
+        self.on_raw = on_raw or (lambda n, last: None)
         self.stop_flag = False
         threading.Thread(target=self._run, daemon=True).start()
 
     def stop(self):
         self.stop_flag = True
+
+    def _configure(self, node, fd):
+        """Same settings as 'stty -F <port> 19200 cs7 parenb parodd raw' - known to work."""
+        r = run(["stty", "-F", node] + self.STTY, timeout=5)
+        if r.returncode == 0:
+            return
+        try:   # stty missing/failed: set the same thing directly
+            a = termios.tcgetattr(fd)
+            a[0] = 0
+            a[1] = 0
+            a[2] = (a[2] & ~(termios.CSIZE | termios.CSTOPB)) | termios.CS7 | termios.PARENB | \
+                termios.PARODD | termios.CREAD
+            a[3] = 0
+            a[4] = a[5] = termios.B19200
+            a[6][termios.VMIN] = 1
+            a[6][termios.VTIME] = 0
+            termios.tcsetattr(fd, termios.TCSANOW, a)
+        except termios.error:
+            pass
 
     def _run(self):
         nodes = tty_nodes(self.d["sysdir"])
@@ -71,29 +100,26 @@ class PadReader:
         except OSError:
             self.on_state("noport")
             return
-        try:
-            a = termios.tcgetattr(fd)
-            a[0] = termios.IGNBRK                                   # iflag: no strip, no parity check
-            a[1] = 0                                                # oflag
-            a[2] = termios.CS7 | termios.PARENB | termios.PARODD | termios.CREAD | termios.CLOCAL
-            a[3] = 0                                                # lflag: raw
-            a[4] = a[5] = termios.B19200
-            termios.tcsetattr(fd, termios.TCSANOW, a)
-            termios.tcflush(fd, termios.TCIFLUSH)
-        except termios.error:
-            pass
+        self._configure(nodes[0], fd)
         self.on_state("listening")
-        buf = b""
+        buf, total, last_report = b"", 0, 0.0
+        tail = b""
         try:
             while not self.stop_flag:
                 r, _w, _x = select.select([fd], [], [], 0.05)
                 if not r:
                     continue
                 try:
-                    buf += os.read(fd, 4096)
+                    chunk = os.read(fd, 4096)
                 except OSError:
                     self.on_state("gone")
                     return
+                total += len(chunk)
+                tail = (tail + chunk)[-15:]
+                if time.time() - last_report > 0.3:
+                    last_report = time.time()
+                    self.on_raw(total, tail)
+                buf += chunk
                 pts, buf = parse_topaz(buf)
                 if pts:
                     self.on_points(pts)
@@ -127,7 +153,17 @@ class SigPadMixin:
             s = self.pad_info(d)
             if s["reader"] is None and d["vid"] == "0403":
                 s["reader"] = PadReader(d, lambda p, k=key: GLib.idle_add(self.pad_points, k, p),
-                                        lambda st, k=key: GLib.idle_add(self.pad_state_changed, k, st))
+                                        lambda st, k=key: GLib.idle_add(self.pad_state_changed, k, st),
+                                        lambda n, last, k=key: GLib.idle_add(self.pad_raw, k, n, last))
+
+    def pad_raw(self, key, total, last):
+        d = self.device(key)
+        if d:
+            s = self.pad_info(d)
+            s["raw"] = (total, last)
+            if key == self.selected_key and not s["points"]:
+                self.pad_refresh(d)
+        return False
 
     def pad_state_changed(self, key, st):
         d = self.device(key)
@@ -257,7 +293,11 @@ class SigPadMixin:
             self.p_coords.set_text(f"Pen at x={last[0]}, y={last[1]}" if last else "")
         else:
             self.p_checks.set_text("Nothing written yet.")
-            self.p_coords.set_text("")
+            raw = s.get("raw")
+            self.p_coords.set_text(
+                f"Data from pad: {raw[0]} bytes received, but not in the expected format "
+                f"(latest: {raw[1].hex(' ')})" if raw else
+                "Data from pad: nothing received yet - write on the pad.")
 
     def pad_flip_toggled(self, w):
         d = self.current()
