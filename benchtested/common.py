@@ -30,6 +30,7 @@ CATEGORIES = [
     ("scanner", "Barcode Scanners"),
     ("mic", "Dictation Mics"),
     ("docscan", "Document Scanners"),
+    ("sigpad", "Signature Pads"),
 ]
 CATEGORY_TITLES = dict(CATEGORIES)
 
@@ -208,9 +209,11 @@ def usb_interfaces(sysdir):
     return out
 
 
-def classify(vid, product, ifaces):
+def classify(vid, product, ifaces, serial=""):
     """Which category a USB device belongs to (or None)."""
     classes = {c for c, _s, _p in ifaces}
+    if vid == "06a8" or re.search(r"topaz", f"{product} {serial}", re.I):
+        return "sigpad"                   # Topaz: own USB id (HID models) or FTDI serial chip "TOPAZ..."
     if vid in SKIP_VENDORS:
         return None
     if vid in DOCSCAN_VENDORS and (re.search(DOCSCAN_VENDORS[vid][1], product, re.I) or
@@ -263,13 +266,18 @@ def scan_usb():
                             or vid in PRINTER_VENDORS):
             product = db_names(os.path.realpath(d))[1]
         ifaces = usb_interfaces(d)
-        cat = classify(vid, product, ifaces)
+        serial = read_file(d + "/serial")
+        cat = classify(vid, product, ifaces, serial)
         if not cat:
             continue
         if cat == "printer":
             brand = PRINTER_VENDORS[vid]
         elif cat == "docscan":
             brand = DOCSCAN_VENDORS[vid][0]
+        elif cat == "sigpad":
+            brand = "Topaz"
+            if not re.search(r"topaz", product, re.I):
+                product = "Topaz signature pad" + (" (serial)" if vid == "0403" else "")
         elif cat == "mic":
             brand = MIC_VENDORS.get(vid) or read_file(d + "/manufacturer") or "Mic"
         else:
@@ -281,7 +289,7 @@ def scan_usb():
             "pid": read_file(d + "/idProduct").lower(),
             "product": product or f"{brand} device",
             "manufacturer": read_file(d + "/manufacturer"),
-            "serial": read_file(d + "/serial"),
+            "serial": serial,
             "sysdir": os.path.realpath(d),
             "ifaces": ifaces,
             "lp": None,

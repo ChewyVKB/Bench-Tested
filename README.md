@@ -9,8 +9,9 @@ I built it for testing used equipment before reselling it. It's just as handy fo
 - **Barcode scanners:** Symbol/Zebra, Honeywell, Datalogic, Opticon, Newland, and other USB scanners
 - **Dictation mics:** Nuance PowerMic, Philips SpeechMike, and similar
 - **Document scanners:** Fujitsu fi-series and ScanSnap, plus other scanners Ubuntu's scanner support (SANE) knows
+- **Signature pads:** Topaz serial ("BSB") models, such as the T-LBK462-BSB-R
 
-**Coming next:** cameras and conference hubs, signature pads.
+**Coming next:** cameras and conference hubs, and Topaz USB (HID) pads.
 
 ![Dymo test labels](docs/dymo-test-labels.png)
 
@@ -58,6 +59,11 @@ I built it for testing used equipment before reselling it. It's just as handy fo
 - Scans the whole stack in the feeder (front, back or both sides) and shows each page as it comes in.
 - Flags **blank pages** and **dark lines running down the page** (dirty glass or a bad sensor). Include a blank white sheet for the most reliable streak check.
 - Every scan is saved as timestamped proof in `~/Pictures/Bench Tested/`. Click a page to open it full size.
+
+### Signature pads
+- Draws what you write on the pad live, on screen. That's how you test pads without their own screen; pads with an LCD show the ink on the pad too.
+- **Edge check:** run the pen into all four edges to confirm the whole writing area responds.
+- **Save signature** stores a timestamped image with the model and serial number as proof. If a model draws upside down, tick **Upside down** once and it's remembered.
 
 ## Requirements
 
@@ -133,6 +139,7 @@ Being in `input` lets programs you run read keyboards and other input devices. T
   - keyboard-mode scanners are read from `/dev/input` and kept from typing into other windows while Bench Tested runs
   - serial-mode scanners are read from `/dev/ttyACM*`
 - **Dictation mics:** the mic's own sound card is found through sysfs and PipeWire, then recorded and played with GStreamer (or `arecord`/`aplay`). Buttons and trackball are read from `/dev/input`.
+- **Signature pads:** Topaz BSB pads are read straight from their serial port (19200 baud, 7 data bits, odd parity, 5-byte pen packets).
 - **Document scanners:** `scanimage` (SANE) in batch mode. Pages are analyzed for blank pages and vertical streaks.
 - **Settings:** stored in `~/.config/bench-tested.json`. Reset codes are stored in `~/.local/share/bench-tested/reset-codes/`.
 

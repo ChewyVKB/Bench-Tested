@@ -7,9 +7,10 @@ from .printers import PrinterMixin
 from .barcode import BarcodeMixin
 from .mic import MicMixin
 from .docscan import DocScanMixin
+from .sigpad import SigPadMixin
 
 
-class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, Gtk.Window if Gtk else object):
+class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, SigPadMixin, Gtk.Window if Gtk else object):
     def __init__(self):
         super().__init__(title=APP_TITLE)
         self.set_default_size(1040, 760)
@@ -31,6 +32,7 @@ class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, Gtk.Window if Gtk 
         self.barcode_init()
         self.mic_init()
         self.docscan_init()
+        self.sigpad_init()
 
         hb = Gtk.HeaderBar(title=APP_TITLE, subtitle="Plug in a device to test it")
         hb.set_show_close_button(True)
@@ -68,7 +70,7 @@ class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, Gtk.Window if Gtk 
         sw.set_size_request(330, -1)
         left.pack_start(sw, True, True, 0)
         self.empty_hint = dim(lbl("Nothing plugged in yet.\nPlug in a label printer, barcode scanner, "
-                                  "dictation mic or document scanner - it shows up here by itself.", wrap=True))
+                                  "dictation mic, document scanner or signature pad - it shows up here by itself.", wrap=True))
         left.pack_start(self.empty_hint, False, False, 0)
         self.batch_box = Gtk.Box(spacing=6)
         b_all = Gtk.Button(label="Tick all printers")
@@ -104,6 +106,7 @@ class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, Gtk.Window if Gtk 
         self.stack.add_named(self.build_barcode_page(), "scanner")
         self.stack.add_named(self.build_mic_page(), "mic")
         self.stack.add_named(self.build_docscan_page(), "docscan")
+        self.stack.add_named(self.build_sigpad_page(), "sigpad")
         paned.pack2(self.stack, True, False)
 
         # ---- bottom: activity log
@@ -134,6 +137,9 @@ class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, Gtk.Window if Gtk 
         for st in self.mic_state.values():
             for w in st["watchers"]:
                 w.stop()
+        for st in self.pad_state.values():
+            if st["reader"]:
+                st["reader"].stop()
         for st in self.doc_state.values():
             if st["proc"] and st["proc"].poll() is None:
                 st["proc"].terminate()
@@ -300,6 +306,7 @@ class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, Gtk.Window if Gtk 
             self.barcode_devices_changed(devs)
             self.mic_devices_changed(devs)
             self.docscan_devices_changed(devs)
+            self.sigpad_devices_changed(devs)
             if not first_time:
                 self.in_thread(self.forget_unplugged_units)
         return True
@@ -338,7 +345,7 @@ class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, Gtk.Window if Gtk 
                 check.connect("toggled", self.on_check, key)
                 box.pack_start(check, False, False, 0)
             icon = {"printer": "printer", "scanner": "scanner", "mic": "audio-input-microphone",
-                    "docscan": "scanner"}.get(d["category"], "drive-removable-media")
+                    "docscan": "scanner", "sigpad": "input-tablet"}.get(d["category"], "drive-removable-media")
             box.pack_start(Gtk.Image.new_from_icon_name(icon, Gtk.IconSize.DND), False, False, 0)
             texts = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
             texts.pack_start(lbl(f"<b>{GLib.markup_escape_text(display_name(d))}</b>",
@@ -418,6 +425,9 @@ class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, Gtk.Window if Gtk 
         elif d["category"] == "docscan":
             self.stack.set_visible_child_name("docscan")
             self.docscan_select(d)
+        elif d["category"] == "sigpad":
+            self.stack.set_visible_child_name("sigpad")
+            self.sigpad_select(d)
         self.update_sensitivity()
 
     def update_header(self):

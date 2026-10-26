@@ -22,6 +22,7 @@ if ! python3 -c 'import gi; gi.require_version("Gst", "1.0"); from gi.repository
     pkgs+=(gir1.2-gstreamer-1.0)
 fi
 pkgs+=(gstreamer1.0-plugins-good gstreamer1.0-pipewire)  # recording + live level meter (usually already there)
+pkgs+=(python3-gi-cairo)                                   # drawing signatures
 missing=()
 for p in "${pkgs[@]}"; do dpkg -s "$p" >/dev/null 2>&1 || missing+=("$p"); done
 if ((${#missing[@]})); then
