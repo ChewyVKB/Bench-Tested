@@ -444,7 +444,27 @@ class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, SigPadMixin, Gtk.W
             self.d_sub.set_text(f"Serial {d['serial'] or '?'}")
 
 
+def already_running():
+    """True if another copy of Bench Tested is open (two copies would fight over devices)."""
+    import fcntl
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    global _LOCK
+    _LOCK = open(os.path.join(CACHE_DIR, "bench-tested.lock"), "w")
+    try:
+        fcntl.flock(_LOCK, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return False
+    except OSError:
+        return True
+
+
 def main():
+    if Gtk is not None and already_running():
+        d = Gtk.MessageDialog(message_type=Gtk.MessageType.INFO, buttons=Gtk.ButtonsType.OK,
+                              text="Bench Tested is already open")
+        d.format_secondary_text("Only one copy can run at a time, because two copies would fight over "
+                                "the devices. Switch to the window that's already open.")
+        d.run()
+        sys.exit(0)
     if Gtk is None:
         msg = ("Bench Tested needs GTK for Python. Install it with:\n\n"
                "    sudo apt install python3-gi gir1.2-gtk-3.0")

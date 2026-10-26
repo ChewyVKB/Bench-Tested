@@ -45,6 +45,25 @@ def parse_topaz(buf):
     return pts, left
 
 
+def port_users(node):
+    """Other processes (that we can see) holding this serial port open."""
+    users = []
+    me = os.getpid()
+    for fd_dir in glob.glob("/proc/[0-9]*/fd"):
+        pid = int(fd_dir.split("/")[2])
+        if pid == me:
+            continue
+        try:
+            for f in os.listdir(fd_dir):
+                if os.readlink(os.path.join(fd_dir, f)) == node:
+                    name = read_file(f"/proc/{pid}/comm") or str(pid)
+                    users.append(f"{name} (pid {pid})")
+                    break
+        except OSError:
+            continue
+    return users
+
+
 def tty_nodes(sysdir):
     nodes = []
     for tty in glob.glob("/sys/class/tty/ttyUSB*") + glob.glob("/sys/class/tty/ttyACM*"):
@@ -101,7 +120,8 @@ class PadReader:
             self.on_state("noport")
             return
         self._configure(nodes[0], fd)
-        self.on_state("listening")
+        others = port_users(nodes[0])
+        self.on_state("busy:" + ", ".join(others) if others else "listening")
         buf, total, last_report = b"", 0, 0.0
         tail = b""
         try:
@@ -274,7 +294,10 @@ class SigPadMixin:
             text = ("This looks like a USB (HID) Topaz model. Only the serial 'BSB' models are "
                     "supported so far - if you write on it, the pad's own screen still shows the ink.")
         else:
-            text = {
+            busy = s["state"].startswith("busy:")
+            text = ("⚠ Another program is also reading the pad, so the data may not reach Bench "
+                    f"Tested: {s['state'][5:]}. Close it (or another open copy of Bench Tested) and "
+                    "unplug/replug the pad.") if busy else {
                 "listening": "✔ Listening to the pad.",
                 "noperm": "No permission to read the pad. Log out and back in once after installing "
                           "(or run 'sudo usermod -aG dialout $USER').",
