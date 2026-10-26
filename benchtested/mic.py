@@ -49,6 +49,7 @@ class MicMixin:
         s = self.mic_state.get(d["key"])
         if s is None:
             s = {"peak": None, "speaker": None, "buttons": set(), "ball": set(), "watchers": [],
+                 "w": {}, "wn": {}, "dead": {}, "retry": {}, "announced": {},
                  "input": "starting", "raw": "starting", "src": None, "recording": None, "audio": None}
             self.mic_state[d["key"]] = s
         return s
@@ -70,8 +71,11 @@ class MicMixin:
         self.mic_tick()
 
     def mic_tick(self):
-        """Runs every second. A freshly plugged-in mic shows up on USB a moment before its
-        button/trackball connections exist, so keep (re)connecting until they're all there."""
+        """Runs every second and keeps each mic's button/trackball connections alive.
+        A freshly plugged-in mic shows up on USB before its connections exist, and for a
+        moment after they appear only an administrator can open them (Ubuntu applies the
+        access rules a beat later) - so anything that fails is simply retried next second."""
+        now = time.time()
         for d in self.devices:
             if d["category"] != "mic":
                 continue
@@ -79,44 +83,50 @@ class MicMixin:
             s = self.mic_info(d)
             tb = find_trackball(d)
             d["trackball"] = tb
-            ev = event_nodes(d["sysdir"]) + (event_nodes(tb) if tb else [])
-            raw = hidraw_nodes(d["sysdir"])
-            if s["watchers"] and s.get("nodes") == (ev, raw):
-                continue
-            for w in s["watchers"]:
-                w.stop()
-            s["watchers"], s["nodes"] = [], (ev, raw)
-            if not ev and not raw:
-                continue                          # not ready yet - try again next second
-            s["watchers"].append(InputWatcher(
-                ev, lambda t, c, v, k=key: GLib.idle_add(self.mic_event, k, t, c, v),
-                lambda st, k=key: GLib.idle_add(self.mic_input_state, k, st)))
-            # buttons that only show up as raw HID reports (SpeechMike and many others)
-            s["watchers"].append(HidrawWatcher(
-                raw, lambda b, k=key: GLib.idle_add(self.mic_raw_press, k, b),
-                lambda st, k=key: GLib.idle_add(self.mic_raw_state, k, st)))
-            if key == self.selected_key:
-                self.mic_refresh_page(d)
-
-    def mic_input_state(self, key, st):
-        d = self.device(key)
-        if d:
-            self.mic_info(d)["input"] = st
-            if st == "gone":                     # its connection went away - reconnect next tick
-                for w in self.mic_info(d)["watchers"]:
+            want = {"ev": event_nodes(d["sysdir"]) + (event_nodes(tb) if tb else []),
+                    "raw": hidraw_nodes(d["sysdir"])}
+            changed = False
+            for kind, nodes in want.items():
+                w = s["w"].get(kind)
+                alive = w is not None and not w.stop_flag and not s["dead"].get(kind)
+                if alive and s["wn"].get(kind) == nodes:
+                    continue
+                if not alive and now < s["retry"].get(kind, 0):
+                    continue
+                if w:
                     w.stop()
-                self.mic_info(d)["watchers"] = []
-                self.mic_info(d)["nodes"] = None
-            if key == self.selected_key:
+                s["w"][kind], s["wn"][kind], s["dead"][kind] = None, nodes, False
+                if not nodes:
+                    continue                      # not there yet - look again next second
+                if kind == "ev":
+                    s["w"][kind] = InputWatcher(
+                        nodes, lambda t, c, v, k=key: GLib.idle_add(self.mic_event, k, t, c, v),
+                        lambda st, k=key: GLib.idle_add(self.mic_conn_state, k, "ev", st))
+                else:   # buttons that only show up as raw HID reports (SpeechMike and others)
+                    s["w"][kind] = HidrawWatcher(
+                        nodes, lambda b, k=key: GLib.idle_add(self.mic_raw_press, k, b),
+                        lambda st, k=key: GLib.idle_add(self.mic_conn_state, k, "raw", st))
+                changed = True
+            s["watchers"] = [w for w in s["w"].values() if w]
+            if changed and key == self.selected_key:
                 self.mic_refresh_page(d)
-        return False
 
-    def mic_raw_state(self, key, st):
+    def mic_conn_state(self, key, kind, st):
         d = self.device(key)
-        if d:
-            self.mic_info(d)["raw"] = st
-            if key == self.selected_key:
-                self.mic_refresh_page(d)
+        if not d:
+            return False
+        s = self.mic_info(d)
+        s["input" if kind == "ev" else "raw"] = st
+        if st in ("noperm", "none", "gone"):
+            s["dead"][kind] = True                # retry this connection in a second
+            s["retry"][kind] = time.time() + 1.0
+        elif st == "listening" and not s["announced"].get(kind):
+            s["announced"][kind] = True
+            if kind == "ev":
+                self.log(f"[{short_name(d)}] buttons connected" +
+                         (" (and trackball)" if d.get("trackball") else ""))
+        if key == self.selected_key:
+            self.mic_refresh_page(d)
         return False
 
     def mic_raw_press(self, key, n):

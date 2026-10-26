@@ -211,6 +211,7 @@ class SigPadMixin:
             s = self.pad_info(d)
             s["plug"] = d.get("plug")
             if s["reader"] is None and d["vid"] == "0403":
+                s["started"] = time.time()
                 s["reader"] = PadReader(d, lambda p, k=key: GLib.idle_add(self.pad_points, k, p),
                                         lambda st, k=key: GLib.idle_add(self.pad_state_changed, k, st),
                                         lambda n, last, k=key: GLib.idle_add(self.pad_raw, k, n, last))
@@ -221,7 +222,8 @@ class SigPadMixin:
             if d["category"] != "sigpad" or d["vid"] != "0403":
                 continue
             s = self.pad_info(d)
-            if s["state"] in ("noport", "gone") and tty_nodes(d["sysdir"]):
+            if s["state"] in ("noport", "gone", "noperm") and tty_nodes(d["sysdir"]) and \
+                    time.time() - s.get("started", 0) > 1.0:
                 if s["reader"]:
                     s["reader"].stop()
                 s["reader"] = None

@@ -280,6 +280,7 @@ class ScannerListener:
         self.stop_flag = False
         self.state = "starting"
         self.mode = scanner_mode(d)
+        self.started = time.time()
         threading.Thread(target=self._run, daemon=True).start()
 
     def stop(self):
@@ -469,7 +470,9 @@ class BarcodeMixin:
                 continue
             lst = self.listeners.get(d["key"])
             mode = scanner_mode(d)
-            if lst is None or lst.stop_flag or getattr(lst, "mode", None) != mode:
+            failed = lst is not None and lst.state in ("noperm", "noperm-serial", "error", "gone") \
+                and time.time() - getattr(lst, "started", 0) > 1.0      # e.g. opened before access was granted
+            if lst is None or lst.stop_flag or failed or getattr(lst, "mode", None) != mode:
                 if lst:
                     lst.stop()
                 self.listeners[d["key"]] = ScannerListener(d, self._on_scan_thread, self._on_state_thread)
