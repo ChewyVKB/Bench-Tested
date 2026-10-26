@@ -76,7 +76,9 @@ class PadReader:
     """Reads a Topaz serial pad in the background.
     on_points(list), on_state(str), on_raw(total_bytes, last_bytes)."""
 
-    STTY = ["19200", "cs7", "parenb", "parodd", "-cstopb", "raw", "-echo"]
+    # clocal: ignore the modem "carrier" line - the pad's USB chip leaves it off, and without
+    # this the port acts as if it were hung up and every read comes back empty.
+    STTY = ["19200", "cs7", "parenb", "parodd", "-cstopb", "raw", "-echo", "clocal", "-hupcl"]
 
     def __init__(self, d, on_points, on_state, on_raw=None):
         self.d, self.on_points, self.on_state = d, on_points, on_state
@@ -88,16 +90,13 @@ class PadReader:
         self.stop_flag = True
 
     def _configure(self, node, fd):
-        """Same settings as 'stty -F <port> 19200 cs7 parenb parodd raw' - known to work."""
-        r = run(["stty", "-F", node] + self.STTY, timeout=5)
-        if r.returncode == 0:
-            return
-        try:   # stty missing/failed: set the same thing directly
+        """19200 7O1 raw, ignoring modem-control lines (CLOCAL)."""
+        try:
             a = termios.tcgetattr(fd)
             a[0] = 0
             a[1] = 0
-            a[2] = (a[2] & ~(termios.CSIZE | termios.CSTOPB)) | termios.CS7 | termios.PARENB | \
-                termios.PARODD | termios.CREAD
+            a[2] = (a[2] & ~(termios.CSIZE | termios.CSTOPB | termios.HUPCL | termios.CRTSCTS)) | \
+                termios.CS7 | termios.PARENB | termios.PARODD | termios.CREAD | termios.CLOCAL
             a[3] = 0
             a[4] = a[5] = termios.B19200
             a[6][termios.VMIN] = 1
@@ -106,24 +105,30 @@ class PadReader:
         except termios.error:
             pass
 
+    def _open(self, node):
+        """Configure first (so the port is never in 'wait for carrier' mode), then open."""
+        run(["stty", "-F", node] + self.STTY, timeout=5)
+        fd = os.open(node, os.O_RDONLY | os.O_NOCTTY | os.O_NONBLOCK)
+        self._configure(node, fd)
+        return fd
+
     def _run(self):
         nodes = tty_nodes(self.d["sysdir"])
         if not nodes:
             self.on_state("noport")
             return
+        node = nodes[0]
         try:
-            fd = os.open(nodes[0], os.O_RDONLY | os.O_NOCTTY | os.O_NONBLOCK)
+            fd = self._open(node)
         except PermissionError:
             self.on_state("noperm")
             return
         except OSError:
             self.on_state("noport")
             return
-        self._configure(nodes[0], fd)
-        others = port_users(nodes[0])
+        others = port_users(node)
         self.on_state("busy:" + ", ".join(others) if others else "listening")
-        buf, total, last_report = b"", 0, 0.0
-        tail = b""
+        buf, total, last_report, tail, empties = b"", 0, 0.0, b"", 0
         try:
             while not self.stop_flag:
                 r, _w, _x = select.select([fd], [], [], 0.05)
@@ -131,9 +136,27 @@ class PadReader:
                     continue
                 try:
                     chunk = os.read(fd, 4096)
+                except BlockingIOError:
+                    continue
                 except OSError:
                     self.on_state("gone")
                     return
+                if not chunk:
+                    # the port says "hung up": reopen it with the carrier line ignored
+                    empties += 1
+                    os.close(fd)
+                    fd = -1
+                    if empties > 20 or not os.path.exists(node):
+                        self.on_state("gone")
+                        return
+                    time.sleep(0.3)
+                    try:
+                        fd = self._open(node)
+                    except OSError:
+                        self.on_state("gone")
+                        return
+                    continue
+                empties = 0
                 total += len(chunk)
                 tail = (tail + chunk)[-15:]
                 if time.time() - last_report > 0.3:
@@ -144,7 +167,8 @@ class PadReader:
                 if pts:
                     self.on_points(pts)
         finally:
-            os.close(fd)
+            if fd >= 0:
+                os.close(fd)
 
 
 class SigPadMixin:
