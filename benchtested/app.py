@@ -8,9 +8,11 @@ from .barcode import BarcodeMixin
 from .mic import MicMixin
 from .docscan import DocScanMixin
 from .sigpad import SigPadMixin
+from .camera import CameraMixin
 
 
-class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, SigPadMixin, Gtk.Window if Gtk else object):
+class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, SigPadMixin, CameraMixin,
+          Gtk.Window if Gtk else object):
     def __init__(self):
         super().__init__(title=APP_TITLE)
         self.set_default_size(1040, 760)
@@ -33,6 +35,7 @@ class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, SigPadMixin, Gtk.W
         self.mic_init()
         self.docscan_init()
         self.sigpad_init()
+        self.camera_init()
 
         hb = Gtk.HeaderBar(title=APP_TITLE, subtitle="Plug in a device to test it")
         hb.set_show_close_button(True)
@@ -70,7 +73,7 @@ class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, SigPadMixin, Gtk.W
         sw.set_size_request(330, -1)
         left.pack_start(sw, True, True, 0)
         self.empty_hint = dim(lbl("Nothing plugged in yet.\nPlug in a label printer, barcode scanner, "
-                                  "dictation mic, document scanner or signature pad - it shows up here by itself.", wrap=True))
+                                  "dictation mic, document scanner, signature pad or camera - it shows up here by itself.", wrap=True))
         left.pack_start(self.empty_hint, False, False, 0)
         self.batch_box = Gtk.Box(spacing=6)
         b_all = Gtk.Button(label="Tick all printers")
@@ -107,6 +110,7 @@ class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, SigPadMixin, Gtk.W
         self.stack.add_named(self.build_mic_page(), "mic")
         self.stack.add_named(self.build_docscan_page(), "docscan")
         self.stack.add_named(self.build_sigpad_page(), "sigpad")
+        self.stack.add_named(self.build_camera_page(), "camera")
         paned.pack2(self.stack, True, False)
 
         # ---- bottom: activity log
@@ -132,6 +136,7 @@ class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, SigPadMixin, Gtk.W
         self.log("Ready. Plug in a device and pick it on the left.")
 
     def on_quit(self, *_a):
+        self.cam_stop()
         for lst in self.listeners.values():
             lst.stop()
         for st in self.mic_state.values():
@@ -307,6 +312,7 @@ class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, SigPadMixin, Gtk.W
             self.mic_devices_changed(devs)
             self.docscan_devices_changed(devs)
             self.sigpad_devices_changed(devs)
+            self.camera_devices_changed(devs)
             if not first_time:
                 self.in_thread(self.forget_unplugged_units)
         return True
@@ -345,7 +351,7 @@ class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, SigPadMixin, Gtk.W
                 check.connect("toggled", self.on_check, key)
                 box.pack_start(check, False, False, 0)
             icon = {"printer": "printer", "scanner": "scanner", "mic": "audio-input-microphone",
-                    "docscan": "scanner", "sigpad": "input-tablet"}.get(d["category"], "drive-removable-media")
+                    "docscan": "scanner", "sigpad": "input-tablet", "camera": "camera-web"}.get(d["category"], "drive-removable-media")
             box.pack_start(Gtk.Image.new_from_icon_name(icon, Gtk.IconSize.DND), False, False, 0)
             texts = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
             texts.pack_start(lbl(f"<b>{GLib.markup_escape_text(display_name(d))}</b>",
@@ -409,6 +415,8 @@ class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, SigPadMixin, Gtk.W
         d = self.current()
         if not d:
             return
+        if d["category"] != "camera" or (self.cam_live and self.cam_live != d["key"]):
+            self.cam_stop()               # don't keep a camera running in the background
         if d["category"] == "printer":
             self.stack.set_visible_child_name("zebra" if d["brand"] == "Zebra" else "dymo")
             self.update_header()
@@ -428,6 +436,9 @@ class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, SigPadMixin, Gtk.W
         elif d["category"] == "sigpad":
             self.stack.set_visible_child_name("sigpad")
             self.sigpad_select(d)
+        elif d["category"] == "camera":
+            self.stack.set_visible_child_name("camera")
+            self.camera_select(d)
         self.update_sensitivity()
 
     def update_header(self):

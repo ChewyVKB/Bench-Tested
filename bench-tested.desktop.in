@@ -2,9 +2,9 @@
 Type=Application
 Name=Bench Tested
 GenericName=Device Tester
-Comment=Test label printers, barcode scanners, dictation mics, document scanners and more
+Comment=Test label printers, barcode scanners, dictation mics, document scanners, signature pads and cameras
 Exec=@BIN@
 Icon=applications-engineering
 Terminal=false
 Categories=Utility;
-Keywords=zebra;dymo;label;printer;barcode;scanner;powermic;dictation;fujitsu;test;
+Keywords=zebra;dymo;label;printer;barcode;scanner;powermic;dictation;fujitsu;topaz;webcam;camera;test;

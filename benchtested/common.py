@@ -31,6 +31,7 @@ CATEGORIES = [
     ("mic", "Dictation Mics"),
     ("docscan", "Document Scanners"),
     ("sigpad", "Signature Pads"),
+    ("camera", "Cameras & Conference"),
 ]
 CATEGORY_TITLES = dict(CATEGORIES)
 
@@ -209,7 +210,7 @@ def usb_interfaces(sysdir):
     return out
 
 
-def classify(vid, product, ifaces, serial=""):
+def classify(vid, product, ifaces, serial="", removable=""):
     """Which category a USB device belongs to (or None)."""
     classes = {c for c, _s, _p in ifaces}
     if vid == "06a8" or re.search(r"topaz", f"{product} {serial}", re.I):
@@ -224,6 +225,10 @@ def classify(vid, product, ifaces, serial=""):
         return "mic"
     if vid in MIC_VENDORS and re.search(MIC_NAMES, product, re.I):
         return "mic"
+    if "0e" in classes:                  # USB video: webcams, conference cameras
+        if removable == "fixed" or re.search(r"integrated|built-?in", product, re.I):
+            return None                   # the laptop's own camera
+        return "camera"
     if vid in PRINTER_VENDORS and ("07" in classes or re.search(r"label", product, re.I)):
         return "printer"
     if "07" in classes:
@@ -267,7 +272,7 @@ def scan_usb():
             product = db_names(os.path.realpath(d))[1]
         ifaces = usb_interfaces(d)
         serial = read_file(d + "/serial")
-        cat = classify(vid, product, ifaces, serial)
+        cat = classify(vid, product, ifaces, serial, read_file(d + "/removable"))
         if not cat:
             continue
         if cat == "printer":
@@ -278,6 +283,10 @@ def scan_usb():
             brand = "Topaz"
             if not re.search(r"topaz", product, re.I):
                 product = "Topaz signature pad" + (" (serial)" if vid == "0403" else "")
+        elif cat == "camera":
+            brand = read_file(d + "/manufacturer") or db_names(os.path.realpath(d))[0] or "Camera"
+            brand = re.sub(r",? ?(Inc|Ltd|Corp|Co)\.?.*$", "", brand).strip() or "Camera"
+            product = product or db_names(os.path.realpath(d))[1] or "USB camera"
         elif cat == "mic":
             brand = MIC_VENDORS.get(vid) or read_file(d + "/manufacturer") or "Mic"
         else:

@@ -10,8 +10,9 @@ I built it for testing used equipment before reselling it. It's just as handy fo
 - **Dictation mics:** Nuance PowerMic, Philips SpeechMike, and similar
 - **Document scanners:** Fujitsu fi-series and ScanSnap, plus other scanners Ubuntu's scanner support (SANE) knows
 - **Signature pads:** Topaz serial ("BSB") models, such as the T-LBK462-BSB-R
+- **Cameras & conference hubs:** USB webcams and conference cameras/speakerphones (Logitech, Poly, Owl and others)
 
-**Coming next:** cameras and conference hubs, and Topaz USB (HID) pads.
+**Coming next:** Topaz USB (HID) pads.
 
 ![Dymo test labels](docs/dymo-test-labels.png)
 
@@ -65,6 +66,14 @@ I built it for testing used equipment before reselling it. It's just as handy fo
 - **Edge check:** run the pen into all four edges to confirm the whole writing area responds.
 - **Save signature** stores a timestamped image with the model and serial number as proof. If a model draws upside down, tick **Upside down** once and it's remembered.
 
+### Cameras & conference hubs
+- **Live preview** at any resolution the camera supports, with the frame rate shown. **Take photo** saves a timestamped picture as proof.
+- **Camera controls:** brightness, focus, white balance and so on, plus a one-click **pan/tilt/zoom test** that moves the camera through its range.
+- **Audio section** for devices with a mic or speaker (greyed out for plain webcams):
+  - **Speaker → mic check** plays a tone through the device's own speaker and listens for it on its own mic, so both are verified without you saying a word.
+  - **Record & play back** works like the dictation mic test.
+- The laptop's built-in camera and dock audio are ignored.
+
 ## Requirements
 
 - Ubuntu 22.04 or newer (other Debian-based GNOME desktops should work)
@@ -73,7 +82,8 @@ I built it for testing used equipment before reselling it. It's just as handy fo
 - Installed by the installer if missing:
   - `zint` draws the barcode test codes
   - `sane-utils` runs document scanners
-  - GStreamer and PipeWire tools handle mic recording and playback
+  - GStreamer and PipeWire tools handle mic recording, playback and the camera preview
+  - `v4l-utils` reads camera modes and controls
 
 ## Install
 
@@ -126,6 +136,8 @@ Being in `input` lets programs you run read keyboards and other input devices. T
 | Laser scanner won't read the screen | Normal. Use **Print test sheet…** |
 | Mic buttons don't register | Log out and back in once after installing, so the `input` group takes effect |
 | Mic recording fails | The Activity log shows which sound device was found. Unplug and replug the mic, then try again. |
+| Camera listed but no picture | Try another resolution in the drop-down, or unplug and replug it. Some conference cameras (e.g. Meeting Owl) need first-time setup in their own app. |
+| Speaker → mic check fails | Check the device isn't muted and its volume is up, then try again |
 | Document scanner says it isn't found | Make sure it's switched on, then click **Look for scanner again**. Check that `scanimage -L` lists it. |
 
 ## How it works
@@ -139,6 +151,7 @@ Being in `input` lets programs you run read keyboards and other input devices. T
   - keyboard-mode scanners are read from `/dev/input` and kept from typing into other windows while Bench Tested runs
   - serial-mode scanners are read from `/dev/ttyACM*`
 - **Dictation mics:** the mic's own sound card is found through sysfs and PipeWire, then recorded and played with GStreamer (or `arecord`/`aplay`). Buttons and trackball are read from `/dev/input`.
+- **Cameras:** GStreamer (`v4l2src`) preview, `v4l2-ctl` for modes and controls. The speaker → mic check detects the test tone with a Goertzel filter.
 - **Signature pads:** Topaz BSB pads are read straight from their serial port (19200 baud, 7 data bits, odd parity, 5-byte pen packets).
 - **Document scanners:** `scanimage` (SANE) in batch mode. Pages are analyzed for blank pages and vertical streaks.
 - **Settings:** stored in `~/.config/bench-tested.json`. Reset codes are stored in `~/.local/share/bench-tested/reset-codes/`.

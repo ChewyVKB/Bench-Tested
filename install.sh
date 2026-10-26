@@ -23,6 +23,8 @@ if ! python3 -c 'import gi; gi.require_version("Gst", "1.0"); from gi.repository
 fi
 pkgs+=(gstreamer1.0-plugins-good gstreamer1.0-pipewire)  # recording + live level meter (usually already there)
 pkgs+=(python3-gi-cairo)                                   # drawing signatures
+command -v v4l2-ctl >/dev/null || pkgs+=(v4l-utils)        # camera modes and controls
+pkgs+=(gstreamer1.0-plugins-base)                          # camera preview (usually already there)
 missing=()
 for p in "${pkgs[@]}"; do dpkg -s "$p" >/dev/null 2>&1 || missing+=("$p"); done
 if ((${#missing[@]})); then
