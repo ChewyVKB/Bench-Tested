@@ -213,8 +213,11 @@ def usb_interfaces(sysdir):
 def classify(vid, product, ifaces, serial="", removable=""):
     """Which category a USB device belongs to (or None)."""
     classes = {c for c, _s, _p in ifaces}
-    if vid == "06a8" or re.search(r"topaz", f"{product} {serial}", re.I):
-        return "sigpad"                   # Topaz: own USB id (HID models) or FTDI serial chip "TOPAZ..."
+    if vid == "06a8" or re.search(r"topaz", f"{product} {serial}", re.I) or \
+            (vid == "0403" and re.fullmatch(r"e-?sign\w*", serial, re.I)):
+        # Topaz: own USB id (HID models), or an FTDI serial chip whose serial number is
+        # "TOPAZ..." (BSB pads) or "eSign" (pads on a USB-B "printer" cable)
+        return "sigpad"
     if vid in SKIP_VENDORS:
         return None
     if vid in DOCSCAN_VENDORS and (re.search(DOCSCAN_VENDORS[vid][1], product, re.I) or

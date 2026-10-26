@@ -9,4 +9,5 @@ SUBSYSTEM=="hidraw", ATTRS{idVendor}=="df04", TAG+="uaccess"
 
 # Topaz signature pads (serial "BSB" models use an FTDI chip with a TOPAZ serial number)
 SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{serial}=="TOPAZ*", TAG+="uaccess"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{serial}=="eSign*", TAG+="uaccess"
 SUBSYSTEM=="hidraw", ATTRS{idVendor}=="06a8", TAG+="uaccess"
