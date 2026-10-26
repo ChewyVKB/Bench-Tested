@@ -322,6 +322,10 @@ class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, SigPadMixin, Camer
                 row = self.listbox.get_selected_row()
                 if row is not None:
                     self.on_row_selected(self.listbox, row)
+        # every second: (re)connect to devices whose connections appeared late
+        self.mic_tick()
+        self.barcode_tick()
+        self.sigpad_tick()
         return True
 
     def row_header(self, row, before):

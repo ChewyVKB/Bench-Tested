@@ -215,6 +215,19 @@ class SigPadMixin:
                                         lambda st, k=key: GLib.idle_add(self.pad_state_changed, k, st),
                                         lambda n, last, k=key: GLib.idle_add(self.pad_raw, k, n, last))
 
+    def sigpad_tick(self):
+        """Runs every second: the pad's serial port appears a moment after the USB device."""
+        for d in self.devices:
+            if d["category"] != "sigpad" or d["vid"] != "0403":
+                continue
+            s = self.pad_info(d)
+            if s["state"] in ("noport", "gone") and tty_nodes(d["sysdir"]):
+                if s["reader"]:
+                    s["reader"].stop()
+                s["reader"] = None
+                s["state"] = "starting"
+                self.sigpad_devices_changed(self.devices)
+
     def pad_raw(self, key, total, last):
         d = self.device(key)
         if d:

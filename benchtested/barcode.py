@@ -279,6 +279,7 @@ class ScannerListener:
         self.d, self.on_scan, self.on_state = d, on_scan, on_state
         self.stop_flag = False
         self.state = "starting"
+        self.mode = scanner_mode(d)
         threading.Thread(target=self._run, daemon=True).start()
 
     def stop(self):
@@ -289,7 +290,7 @@ class ScannerListener:
         self.on_state(self.d["key"], state)
 
     def _run(self):
-        mode = scanner_mode(self.d)
+        mode = self.mode
         try:
             if mode == "keyboard":
                 self._run_keyboard()
@@ -460,6 +461,19 @@ class BarcodeMixin:
             if key not in self.listeners or self.listeners[key].stop_flag:
                 self.listeners[key] = ScannerListener(d, self._on_scan_thread, self._on_state_thread)
 
+    def barcode_tick(self):
+        """Runs every second: a just-plugged-in scanner may not have its keyboard/serial
+        connection yet - reconnect once it (or a different one) appears."""
+        for d in self.devices:
+            if d["category"] != "scanner":
+                continue
+            lst = self.listeners.get(d["key"])
+            mode = scanner_mode(d)
+            if lst is None or lst.stop_flag or getattr(lst, "mode", None) != mode:
+                if lst:
+                    lst.stop()
+                self.listeners[d["key"]] = ScannerListener(d, self._on_scan_thread, self._on_state_thread)
+
     def barcode_restart(self, d):
         old = self.listeners.pop(d["key"], None)
         if old:
@@ -475,6 +489,8 @@ class BarcodeMixin:
             self.show_listen_state(self.current())
         if state == "hidpos":
             self.set_row_status(key, "⚠ Not in keyboard mode")
+        elif state == "listening" and self.row_status.get(key, "").startswith("⚠ Not in keyboard"):
+            self.set_row_status(key, "")         # it was only still connecting
         return False
 
     def _on_scan_thread(self, key, text):
