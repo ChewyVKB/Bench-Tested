@@ -21,9 +21,10 @@ PROOF_DIR = os.path.expanduser("~/Pictures/Bench Tested")
 
 def parse_topaz(buf, seven_bit=False):
     """Pull complete packets out of buf. Returns (points, leftover) with points as
-    (pen_down, x, y). Packets are 5 bytes: a status byte (0xE5 = pen touching,
-    0xE4 = pen hovering near the pad), then x low/high and y low/high, 7 bits each. If the port hands over 7-bit bytes, the status byte is
-    recognised by value (0x64/0x65) and confirmed by the next packet."""
+    (pen_down, x, y). Packets are 5 bytes: a status byte (top bit set), then x low/high
+    and y low/high, 7 bits each - the same on every Topaz serial pad seen so far, only the
+    port speed differs. If the port hands over 7-bit bytes, the status byte is recognised
+    by value (0x64/0x65) and confirmed by the next packet."""
     pts, i, n = [], 0, len(buf)
     while i < n:
         b0 = buf[i]
@@ -46,8 +47,12 @@ def parse_topaz(buf, seven_bit=False):
                 i += 1
                 continue
         st, xl, xh, yl, yh = buf[i:i + 5]
-        # status bit 0: 1 = pen touching (0xE5), 0 = pen hovering near the pad (0xE4)
-        pts.append((bool(st & 1), (xl & 0x7f) | (xh & 0x7f) << 7, (yl & 0x7f) | (yh & 0x7f) << 7))
+        # status: bit 0 = pen touching (0xE5 / 0xC1), bit 6 = pen near the pad (0xE4 / 0xC0
+        # = hovering), neither (0x80) = pen out of range -> reported as x = y = -1
+        if st & 1 or st & 0x40 or seven_bit:
+            pts.append((bool(st & 1), (xl & 0x7f) | (xh & 0x7f) << 7, (yl & 0x7f) | (yh & 0x7f) << 7))
+        else:
+            pts.append((False, -1, -1))
         i += 5
     return pts, buf[i:][-64:]
 
@@ -71,6 +76,11 @@ def port_users(node):
     return users
 
 
+def pad_model(d):
+    """Per-model key for remembered settings (the serial chip's name tells BSB and eSign pads apart)."""
+    return (d.get("serial") or "") + "|" + norm(d.get("product", "")) or "topaz"
+
+
 def tty_nodes(sysdir):
     nodes = []
     for tty in glob.glob("/sys/class/tty/ttyUSB*") + glob.glob("/sys/class/tty/ttyACM*"):
@@ -79,47 +89,57 @@ def tty_nodes(sysdir):
     return sorted(nodes)
 
 
+# Port settings Topaz serial pads use. The pad's packets look the same on all of them;
+# only the speed/format differs by model, so the reader tries them until data decodes.
+COMMON_STTY = ["-cstopb", "raw", "-echo", "clocal", "-hupcl"]
+PAD_PROFILES = [
+    ("19200 7O1", ["19200", "cs7", "parenb", "parodd"]),      # T-LBK462-BSB ("TOPAZ..." chip)
+    ("115200 8N1", ["115200", "cs8", "-parenb"]),            # "eSign" pads on a USB-B cable
+    ("19200 8N1", ["19200", "cs8", "-parenb"]),
+    ("9600 8N1", ["9600", "cs8", "-parenb"]),
+    ("38400 8N1", ["38400", "cs8", "-parenb"]),
+    ("57600 8N1", ["57600", "cs8", "-parenb"]),
+    ("9600 7O1", ["9600", "cs7", "parenb", "parodd"]),
+]
+
+
+def profile_order(serial, remembered=None):
+    names = [p[0] for p in PAD_PROFILES]
+    first = remembered if remembered in names else \
+        "115200 8N1" if re.match(r"e-?sign", serial or "", re.I) else "19200 7O1"
+    return [first] + [n for n in names if n != first]
+
+
 class PadReader:
     """Reads a Topaz serial pad in the background.
-    on_points(list), on_state(str), on_raw(total_bytes, last_bytes)."""
+    on_points(list), on_state(str), on_raw(total_bytes, last_bytes), on_profile(name).
+    Starts with the settings known for this model; if the data doesn't decode cleanly it
+    tries the other common settings by itself, and sticks with the one that works."""
 
-    # clocal: ignore the modem "carrier" line - the pad's USB chip leaves it off, and without
-    # this the port acts as if it were hung up and every read comes back empty.
-    STTY = ["19200", "cs7", "parenb", "parodd", "-cstopb", "raw", "-echo", "clocal", "-hupcl"]
-
-    def __init__(self, d, on_points, on_state, on_raw=None):
+    def __init__(self, d, on_points, on_state, on_raw=None, on_profile=None, remembered=None):
         self.d, self.on_points, self.on_state = d, on_points, on_state
         self.on_raw = on_raw or (lambda n, last: None)
+        self.on_profile = on_profile or (lambda name: None)
+        self.order = profile_order(d.get("serial"), remembered)
+        self.idx, self.locked = 0, False
         self.stop_flag = False
         threading.Thread(target=self._run, daemon=True).start()
+
+    @property
+    def profile(self):
+        return self.order[self.idx]
 
     def stop(self):
         self.stop_flag = True
 
-    def _configure(self, node, fd):
-        """19200 7O1 raw, ignoring modem-control lines (CLOCAL)."""
-        try:
-            a = termios.tcgetattr(fd)
-            a[0] = 0
-            a[1] = 0
-            a[2] = (a[2] & ~(termios.CSIZE | termios.CSTOPB | termios.HUPCL | termios.CRTSCTS)) | \
-                termios.CS7 | termios.PARENB | termios.PARODD | termios.CREAD | termios.CLOCAL
-            a[3] = 0
-            a[4] = a[5] = termios.B19200
-            a[6][termios.VMIN] = 1
-            a[6][termios.VTIME] = 0
-            termios.tcsetattr(fd, termios.TCSANOW, a)
-        except termios.error:
-            pass
+    def _stty(self, node):
+        args = dict(PAD_PROFILES)[self.profile] + COMMON_STTY
+        return run(["stty", "-F", node] + args, timeout=5).returncode == 0
 
     def _open(self, node):
-        """Configure with stty first (exactly the settings proven to give clean data, and
-        never in 'wait for carrier' mode), then open. termios is only a fallback."""
-        ok = run(["stty", "-F", node] + self.STTY, timeout=5).returncode == 0
-        fd = os.open(node, os.O_RDONLY | os.O_NOCTTY | os.O_NONBLOCK)
-        if not ok:
-            self._configure(node, fd)
-        return fd
+        """Configure first (so the port never waits for a modem 'carrier'), then open."""
+        self._stty(node)
+        return os.open(node, os.O_RDONLY | os.O_NOCTTY | os.O_NONBLOCK)
 
     def _run(self):
         nodes = tty_nodes(self.d["sysdir"])
@@ -138,6 +158,8 @@ class PadReader:
         others = port_users(node)
         self.on_state("busy:" + ", ".join(others) if others else "listening")
         buf, total, last_report, tail, empties, saw_high = b"", 0, 0.0, b"", 0, False
+        win_bytes = win_good = 0
+        held = []
         try:
             while not self.stop_flag:
                 r, _w, _x = select.select([fd], [], [], 0.05)
@@ -174,7 +196,29 @@ class PadReader:
                 buf += chunk
                 if any(b & 0x80 for b in chunk):
                     saw_high = True
-                pts, buf = parse_topaz(buf, seven_bit=not saw_high and total > 40)
+                seven = "cs7" in dict(PAD_PROFILES)[self.profile] and not saw_high and total > 40
+                pts, buf = parse_topaz(buf, seven_bit=seven)
+                win_bytes += len(chunk)
+                win_good += 5 * len(pts)
+                if not self.locked:
+                    held = (held + pts)[-400:]             # don't draw until the setting is confirmed
+                    pts = []
+                if not self.locked and win_bytes >= 150:
+                    if win_good / win_bytes >= 0.8:
+                        self.locked = True                 # this setting works for this pad
+                        self.on_profile(self.profile)
+                        pts, held = held, []
+                    elif win_good / win_bytes < 0.6:
+                        # not decoding: try the next setting
+                        self.idx = (self.idx + 1) % len(self.order)
+                        self._stty(node)
+                        try:
+                            termios.tcflush(fd, termios.TCIFLUSH)
+                        except termios.error:
+                            pass
+                        buf, saw_high, pts, held = b"", False, [], []
+                        self.on_state("trying:" + self.profile)
+                    win_bytes = win_good = 0
                 if pts:
                     self.on_points(pts)
         finally:
@@ -191,7 +235,7 @@ class SigPadMixin:
     def pad_info(self, d):
         s = self.pad_state.get(d["key"])
         if s is None:
-            b = self.cfg.get("sigpad_bounds", {}).get(norm(d["product"]) or "topaz")
+            b = self.cfg.get("sigpad_bounds", {}).get(pad_model(d))
             s = {"strokes": [], "reader": None, "state": "starting", "points": 0,
                  "bounds": list(b or TOPAZ_DEFAULT_BOUNDS), "seen": None, "pen_was_down": False, "hover": None,
                  "last_t": 0.0}
@@ -212,9 +256,12 @@ class SigPadMixin:
             s["plug"] = d.get("plug")
             if s["reader"] is None and d["vid"] == "0403":
                 s["started"] = time.time()
-                s["reader"] = PadReader(d, lambda p, k=key: GLib.idle_add(self.pad_points, k, p),
-                                        lambda st, k=key: GLib.idle_add(self.pad_state_changed, k, st),
-                                        lambda n, last, k=key: GLib.idle_add(self.pad_raw, k, n, last))
+                s["reader"] = PadReader(
+                    d, lambda p, k=key: GLib.idle_add(self.pad_points, k, p),
+                    lambda st, k=key: GLib.idle_add(self.pad_state_changed, k, st),
+                    lambda n, last, k=key: GLib.idle_add(self.pad_raw, k, n, last),
+                    lambda prof, k=key: GLib.idle_add(self.pad_profile_found, k, prof),
+                    remembered=self.cfg.get("sigpad_profile", {}).get(d["serial"] or "?"))
 
     def sigpad_tick(self):
         """Runs every second: the pad's serial port appears a moment after the USB device."""
@@ -229,6 +276,19 @@ class SigPadMixin:
                 s["reader"] = None
                 s["state"] = "starting"
                 self.sigpad_devices_changed(self.devices)
+
+    def pad_profile_found(self, key, prof):
+        d = self.device(key)
+        if d:
+            remembered = self.cfg.setdefault("sigpad_profile", {})
+            if remembered.get(d["serial"] or "?") != prof:
+                remembered[d["serial"] or "?"] = prof
+                save_config(self.cfg)
+                self.log(f"[{short_name(d)}] pad talks at {prof} - remembered for this model")
+            self.pad_info(d)["state"] = "listening"
+            if key == self.selected_key:
+                self.pad_refresh(d)
+        return False
 
     def pad_raw(self, key, total, last):
         d = self.device(key)
@@ -259,7 +319,7 @@ class SigPadMixin:
         for down, x, y in pts:
             if not down:                       # hovering: show where the pen is, don't draw
                 s["pen_was_down"] = False
-                s["hover"] = (x, y)
+                s["hover"] = (x, y) if x >= 0 else None      # -1 = pen out of range
                 continue
             s["hover"] = None
             if x < b[0] or y < b[1] or x > b[2] or y > b[3]:    # pad reports a bigger area
@@ -341,7 +401,7 @@ class SigPadMixin:
         self.p_title.set_markup(f"<big><b>{GLib.markup_escape_text(display_name(d))}</b></big>")
         self.p_sub.set_text(f"Serial {d['serial'] or '?'}  ·  USB id {d['vid']}:{d['pid']}")
         self._loading = True
-        self.p_flip.set_active(bool(self.cfg.get("sigpad_flip", {}).get(norm(d["product"]) or "topaz")))
+        self.p_flip.set_active(bool(self.cfg.get("sigpad_flip", {}).get(pad_model(d))))
         self._loading = False
         self.pad_refresh(d)
         self.p_canvas.queue_draw()
@@ -357,6 +417,8 @@ class SigPadMixin:
                     f"Tested: {s['state'][5:]}. Close it (or another open copy of Bench Tested) and "
                     "unplug/replug the pad.") if busy else {
                 "listening": "✔ Listening to the pad.",
+                **({s["state"]: f"Working out this pad's settings… (trying {s['state'][7:]}) - "
+                    "keep writing on it."} if s["state"].startswith("trying:") else {}),
                 "noperm": "No permission to read the pad. Log out and back in once after installing "
                           "(or run 'sudo usermod -aG dialout $USER').",
                 "noport": "The pad's serial port isn't there - unplug it and plug it back in.",
@@ -384,7 +446,7 @@ class SigPadMixin:
         d = self.current()
         if self._loading or not d or d["category"] != "sigpad":
             return
-        self.cfg.setdefault("sigpad_flip", {})[norm(d["product"]) or "topaz"] = w.get_active()
+        self.cfg.setdefault("sigpad_flip", {})[pad_model(d)] = w.get_active()
         save_config(self.cfg)
         self.p_canvas.queue_draw()
 
@@ -475,5 +537,5 @@ class SigPadMixin:
             fh.write(svg)
         self.log(f"Saved the signature: {path}")
         # remember the pad's real writing area for this model
-        self.cfg.setdefault("sigpad_bounds", {})[norm(d["product"]) or "topaz"] = s["bounds"]
+        self.cfg.setdefault("sigpad_bounds", {})[pad_model(d)] = s["bounds"]
         save_config(self.cfg)

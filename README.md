@@ -9,7 +9,7 @@ I built it for testing used equipment before reselling it. It's just as handy fo
 - **Barcode scanners:** Symbol/Zebra, Honeywell, Datalogic, Opticon, Newland, and other USB scanners
 - **Dictation mics:** Nuance PowerMic, Philips SpeechMike, and similar
 - **Document scanners:** Fujitsu fi-series and ScanSnap, plus other scanners Ubuntu's scanner support (SANE) knows
-- **Signature pads:** Topaz serial ("BSB") models, such as the T-LBK462-BSB-R
+- **Signature pads:** Topaz serial pads: "BSB" models such as the T-LBK462-BSB-R, and "eSign" models on a USB-B cable
 - **Cameras & conference hubs:** USB webcams and conference cameras/speakerphones (Logitech, Poly, Owl and others)
 
 **Coming next:** Topaz USB (HID) pads.
@@ -154,7 +154,7 @@ Being in `input` lets programs you run read keyboards and other input devices. T
   - serial-mode scanners are read from `/dev/ttyACM*`
 - **Dictation mics:** the mic's own sound card is found through sysfs and PipeWire, then recorded and played with GStreamer (or `arecord`/`aplay`). Buttons and trackball are read from `/dev/input`.
 - **Cameras:** GStreamer (`v4l2src`) preview, `v4l2-ctl` for modes and controls. The speaker → mic check detects the test tone with a Goertzel filter.
-- **Signature pads:** Topaz BSB pads are read straight from their serial port (19200 baud, 7 data bits, odd parity, 5-byte pen packets).
+- **Signature pads:** Topaz serial pads are read straight from their serial port. Every model seen so far uses the same 5-byte pen packet; only the speed differs (BSB: 19200 baud 7O1, eSign: 115200 8N1). For an unknown model the app tries the common settings until the data decodes cleanly, then remembers the one that worked.
 - **Document scanners:** `scanimage` (SANE) in batch mode. Pages are analyzed for blank pages and vertical streaks.
 - **Settings:** stored in `~/.config/bench-tested.json`. Reset codes are stored in `~/.local/share/bench-tested/reset-codes/`.
 
