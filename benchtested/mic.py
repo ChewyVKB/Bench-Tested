@@ -4,7 +4,10 @@ back through the mic's own speaker, a press-each-button checklist, trackball che
 from .common import *  # noqa: F401,F403
 from .audio import AudioDevice, play_default, write_tone
 from .gtkutil import GLib, Gtk, dim, lbl
-from .inputdev import BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, EV_KEY, EV_REL, InputWatcher, event_nodes
+from .inputdev import (BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, EV_KEY, EV_REL, HidrawWatcher, InputWatcher,
+                       event_nodes, hidraw_nodes)
+
+RAW_BASE = 100000      # buttons found in raw HID reports are numbered from here
 
 TRACKBALL_VENDORS = {"df04"}       # PowerMic's built-in trackball shows up as its own USB device
 
@@ -25,6 +28,8 @@ def find_trackball(d):
 
 
 def button_name(code):
+    if code >= RAW_BASE:
+        return f"Button {code - RAW_BASE}"
     if code in BTN_NAMES:
         return BTN_NAMES[code]
     if 0x100 <= code < 0x110:
@@ -44,7 +49,7 @@ class MicMixin:
         s = self.mic_state.get(d["key"])
         if s is None:
             s = {"peak": None, "speaker": None, "buttons": set(), "ball": set(), "watchers": [],
-                 "input": "starting", "recording": None, "audio": None}
+                 "input": "starting", "raw": "starting", "src": None, "recording": None, "audio": None}
             self.mic_state[d["key"]] = s
         return s
 
@@ -67,6 +72,10 @@ class MicMixin:
                 s["watchers"].append(InputWatcher(
                     nodes, lambda t, c, v, k=key: GLib.idle_add(self.mic_event, k, t, c, v),
                     lambda st, k=key: GLib.idle_add(self.mic_input_state, k, st)))
+                # buttons that only show up as raw HID reports (SpeechMike and many others)
+                s["watchers"].append(HidrawWatcher(
+                    hidraw_nodes(d["sysdir"]), lambda b, k=key: GLib.idle_add(self.mic_raw_press, k, b),
+                    lambda st, k=key: GLib.idle_add(self.mic_raw_state, k, st)))
             else:
                 d["trackball"] = find_trackball(d)
 
@@ -78,6 +87,24 @@ class MicMixin:
                 self.mic_refresh_page(d)
         return False
 
+    def mic_raw_state(self, key, st):
+        d = self.device(key)
+        if d:
+            self.mic_info(d)["raw"] = st
+            if key == self.selected_key:
+                self.mic_refresh_page(d)
+        return False
+
+    def mic_raw_press(self, key, n):
+        d = self.device(key)
+        if not d:
+            return False
+        s = self.mic_info(d)
+        if s["src"] == "evdev":
+            return False              # this mic reports buttons normally; raw reports would double up
+        s["src"] = "raw"
+        return self.mic_event(key, EV_KEY, RAW_BASE + n, 1)
+
     def mic_event(self, key, t, code, value):
         d = self.device(key)
         if not d:
@@ -88,6 +115,9 @@ class MicMixin:
             if code in BTN_NAMES and d.get("trackball"):
                 s["ball"].add(code)
             else:
+                if code < RAW_BASE and s["src"] != "evdev":
+                    s["src"] = "evdev"          # normal button events win over raw reports
+                    s["buttons"] = {c for c in s["buttons"] if c < RAW_BASE}
                 changed = code not in s["buttons"]
                 s["buttons"].add(code)
             if key == self.selected_key:
@@ -253,6 +283,9 @@ class MicMixin:
                                               (("move", "Rolls"), (BTN_LEFT, "Left click"),
                                                (BTN_RIGHT, "Right click"))))
         notes = []
+        if s["raw"] == "noperm":
+            notes.append("Some buttons may not register until the mic is unplugged and plugged back in "
+                         "after installing (the installer gives the app access to dictation mics).")
         if s["input"] == "noperm":
             notes.append("Buttons can't be read yet: log out and back in once after installing "
                          "(or run 'sudo usermod -aG input $USER').")
@@ -343,6 +376,6 @@ class MicMixin:
         if not d:
             return
         s = self.mic_info(d)
-        s.update(peak=None, speaker=None, buttons=set(), ball=set(), recording=None)
+        s.update(peak=None, speaker=None, buttons=set(), ball=set(), recording=None, src=None)
         self.set_row_status(d["key"], "")
         self.mic_refresh_page(d)

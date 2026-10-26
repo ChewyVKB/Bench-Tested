@@ -53,7 +53,7 @@ I built it for testing used equipment before reselling it. It's just as handy fo
 - **Record & play back:** talk for 5 seconds and hear the recording through the mic's **own speaker**, which tests the mic and the speaker in one go. A live level meter shows the mic picking you up.
 - Recording only ever uses the device being tested, never the computer's built-in mic, so a pass really means this mic works.
 - A test tone for the speaker, and the option to play the recording on the computer instead.
-- **Press-each-button checklist:** every button that works is ticked off as you press it.
+- **Press-each-button checklist:** every button that works is ticked off as you press it, including buttons that have no function on Linux. Mics that send their buttons as raw HID reports (Philips SpeechMike and many others) are read directly, and trackball or slider movement is filtered out.
 - **Trackball check** on PowerMics: rolls, left click, right click.
 
 ### Document scanners
@@ -112,6 +112,8 @@ The installer adds you to three groups. You can skip any of them; the related fe
 | `lp` | Talk to Zebra printers over USB | Zebra printing doesn't work |
 | `input` | See which scanner sent each scan, and read dictation-mic buttons | Scans still work (click the box on the scanner page and scan), but mic buttons can't be tested |
 | `dialout` | Read serial-mode scanners and signature pads | Those devices can't be read |
+
+The installer also adds a small udev rule (`/etc/udev/rules.d/70-bench-tested.rules`). It lets the person logged in at the computer read **dictation mics and Topaz pads** directly. It doesn't cover keyboards or other devices.
 
 Being in `input` lets programs you run read keyboards and other input devices. That's normal for a dedicated test bench. Skip it on a shared computer if that's a concern.
 

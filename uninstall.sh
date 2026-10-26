@@ -4,6 +4,9 @@
 set -eu
 rm -rf "$HOME/.local/share/bench-tested/lib"
 rm -f "$HOME/.local/bin/bench-tested" "$HOME/.local/share/applications/bench-tested.desktop"
+if [ -f /etc/udev/rules.d/70-bench-tested.rules ]; then
+    sudo rm -f /etc/udev/rules.d/70-bench-tested.rules && sudo udevadm control --reload-rules
+fi
 read -r -p "Also delete saved settings and reset codes? [y/N] " a
 case "$a" in [yY]*)
     rm -rf "$HOME/.local/share/bench-tested"

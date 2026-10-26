@@ -1,0 +1,12 @@
+# Bench Tested: give the logged-in user access to the devices it tests.
+# (uaccess = only the person sitting at the computer, only while they're logged in)
+
+# Dictation mics - their buttons often arrive as raw HID reports
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0554", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0911", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="07b4", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="df04", TAG+="uaccess"
+
+# Topaz signature pads (serial "BSB" models use an FTDI chip with a TOPAZ serial number)
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{serial}=="TOPAZ*", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="06a8", TAG+="uaccess"

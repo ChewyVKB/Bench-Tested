@@ -47,6 +47,12 @@ rm -f "$HOME/.local/bin/label-printer-test" "$APPS/label-printer-test.desktop"
 update-desktop-database "$APPS" 2>/dev/null || true
 
 echo "==> Device access"
+RULES=/etc/udev/rules.d/70-bench-tested.rules
+if ! cmp -s 70-bench-tested.rules "$RULES" 2>/dev/null; then
+    echo "    Letting you read dictation-mic buttons and signature pads (udev rule)"
+    sudo install -m644 70-bench-tested.rules "$RULES"
+    sudo udevadm control --reload-rules && sudo udevadm trigger --subsystem-match=hidraw --subsystem-match=tty
+fi
 relog=0
 add_group() {   # group, reason
     if getent group "$1" >/dev/null && ! id -nG "$USER" | tr ' ' '\n' | grep -qx "$1"; then
