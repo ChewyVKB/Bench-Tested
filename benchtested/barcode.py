@@ -272,6 +272,12 @@ MODE_TEXT = {
 }
 
 
+# Scanners are only held (so their scans don't type into other windows) while Bench Tested
+# is the active window. Switch to another window and the scanner types there as normal.
+APP_ACTIVE = threading.Event()
+APP_ACTIVE.set()
+
+
 class ScannerListener:
     """Reads one scanner in the background and calls on_scan(key, text)."""
 
@@ -312,24 +318,31 @@ class ScannerListener:
                 return
             except OSError:
                 continue
-            try:   # keep scans from also typing into whatever window is focused
-                fcntl.ioctl(fd, EVIOCGRAB, 1)
-            except OSError:
-                pass
             fds[fd] = KeyDecoder()
         if not fds:
             self._set("unknown")
             return
         self._set("listening")
         last = time.time()
+        held = None
         try:
             while not self.stop_flag:
+                want = APP_ACTIVE.is_set()
+                if want != held:
+                    # take the scanner while our window is active; give it back otherwise
+                    for fd, dec in fds.items():
+                        try:
+                            fcntl.ioctl(fd, EVIOCGRAB, 1 if want else 0)
+                        except OSError:
+                            pass
+                        dec.flush()                    # drop a half-read scan
+                    held = want
                 r, _w, _x = select.select(list(fds), [], [], 0.15)
                 if not r:
                     if time.time() - last > 0.25:      # no Enter suffix: end of scan by pause
                         for dec in fds.values():
                             text = dec.flush()
-                            if text:
+                            if text and held:
                                 self.on_scan(self.d["key"], text)
                     continue
                 for fd in r:
@@ -343,7 +356,7 @@ class ScannerListener:
                         _s, _us, etype, code, value = struct.unpack(EVENT_FMT, data[i:i + EVENT_SIZE])
                         if etype == EV_KEY:
                             text = fds[fd].feed(code, value)
-                            if text:
+                            if text and held:          # not ours while another window is active
                                 self.on_scan(self.d["key"], text)
         finally:
             for fd in fds:
@@ -441,10 +454,17 @@ class BarcodeMixin:
     """Barcode-scanner page; mixed into the main window."""
 
     def barcode_init(self):
+        self.connect("notify::is-active", self.on_active_changed)
         self.listeners = {}          # key -> ScannerListener
         self.scan_state = {}         # key -> {"hits": set, "log": [(time, text, cid)], "state": str}
         self.code_dir = tempfile.mkdtemp(prefix="bench-tested-codes-")
         self.code_cards = {}         # cid -> (status label)
+
+    def on_active_changed(self, *_a):
+        if self.is_active():
+            APP_ACTIVE.set()
+        else:
+            APP_ACTIVE.clear()
 
     def scan_info(self, key):
         return self.scan_state.setdefault(key, {"hits": set(), "log": [], "state": "starting"})
@@ -642,7 +662,8 @@ class BarcodeMixin:
         state = self.scan_info(d["key"])["state"]
         text = {
             "listening": "✔ Listening - scans from this scanner show up below, even while "
-                         "you look at another device.",
+                         "you look at another device. While another window is active, the "
+                         "scanner types there as normal.",
             "noperm": "Scan into the box below. (To tell several scanners apart automatically, run "
                       "'sudo usermod -aG input $USER' once and log out and back in.)",
             "noperm-serial": "No permission for the scanner's serial port. Run "

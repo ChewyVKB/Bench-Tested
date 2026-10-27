@@ -7,11 +7,11 @@ All notable changes to Bench Tested are listed here.
 ### Added
 - Conference speakerphones and expansion mics without a camera (Logitech, Poly/Polycom, Jabra, EPOS) are now detected. They get an audio-only page.
 - Conference cams built as a hub with separate audio and video parts (e.g. Logitech ConferenceCam Connect) are detected.
-
 - Topaz USB HID signature pads (`06a8:0043`, *Topaz HID Tablet*): live ink, hover dot, edge check and saved signatures, the same as serial pads.
 - Signature pads: the drawing clears itself 4 seconds after you stop writing, like the pad's own screen. The checks stay, and Save signature still saves the last signature.
 
 ### Fixed
+- Barcode scanners are only held while Bench Tested is the active window. In any other window (a browser, an ERP system) scanners type as normal, so the app can stay open all day.
 - Zebras whose USB connection doesn't come back after a factory reset or calibration are reconnected in software, instead of needing a replug. Needs `./install.sh` to be run again once.
 - Signature pads: the hover dot disappears when the pad stops reporting the pen, instead of staying frozen on screen.
 

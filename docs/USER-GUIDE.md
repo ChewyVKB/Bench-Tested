@@ -132,7 +132,9 @@ Works with USB scanners from Symbol/Zebra, Honeywell, Datalogic, Opticon, Newlan
    - **2D:** QR Code, Data Matrix, PDF417
 3. The summary tells you whether the scanner reads **1D only** or **1D and 2D**. That's handy for the listing.
 
-Every scan appears under **Scans from this scanner**, labelled with the scanner that sent it. That means you can test several scanners at once, and scans never end up typed into other windows.
+Every scan appears under **Scans from this scanner**, labelled with the scanner that sent it. That means you can test several scanners at once.
+
+Scanners are only held while Bench Tested is the active window. **Switch to another window, such as your browser, and every scanner types there as normal.** Bench Tested ignores those scans, so you can keep it open all day next to other work.
 
 **Laser scanners** can't read screens. Click **Print test sheet…** and print the codes:
 - on a **Zebra**, spread over as many labels as needed, or

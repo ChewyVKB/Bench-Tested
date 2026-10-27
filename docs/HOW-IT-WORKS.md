@@ -73,7 +73,7 @@ Bench-Tested/
 
 ## Barcode scanners
 
-- **Keyboard (HID) mode.** Read from `/dev/input/event*` with an exclusive grab, so scans never type into other windows and each scan is tagged with the scanner that sent it.
+- **Keyboard (HID) mode.** Read from `/dev/input/event*`, so each scan is tagged with the scanner that sent it. While Bench Tested is the active window, scanners are held with an exclusive grab (`EVIOCGRAB`), so scans don't also type into other windows. When another window becomes active, the grab is released and scanners type there as normal. The app ignores those scans.
 - **Serial mode.** Read from `/dev/ttyACM*`.
 - **HID POS mode.** Detected and reported, with a suggestion to switch to keyboard mode.
 - **Test codes** are drawn with `zint`. A built-in Code 128 encoder is the fallback when `zint` is missing.
