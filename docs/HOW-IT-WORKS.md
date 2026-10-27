@@ -65,6 +65,8 @@ Bench-Tested/
 | Calibration | `~JC` |
 | Test label | ZPL (or EPL for older models) built for the exact label size and dpi |
 
+**Software replug.** A factory reset or calibration makes a Zebra restart its USB connection, and Linux sometimes doesn't reconnect the `usblp` driver. When `/dev/usb/lp*` stays missing, or the printer stops answering, the app re-attaches the driver through usbfs (`USBDEVFS_CONNECT`), and if needed resets the USB connection (`USBDEVFS_RESET`), just like unplugging and replugging it. The udev rule grants access to Zebra USB devices for this.
+
 **Dymo.** Printed through CUPS with the official `printer-driver-dymo`. Each model gets one queue, using a USB address without the serial number so any unit of that model uses it. When two identical units are plugged in at once, a separate queue is added for each. The label is a PostScript page at the exact label size.
 
 **Printhead check band.** Thin diagonal lines that span the full width of the head, so between them they hit every dot. A dead dot leaves a white line. Unlike a solid black block, it has no heavy black areas, so it won't trip a weak power supply.

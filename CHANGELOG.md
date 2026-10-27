@@ -6,6 +6,10 @@ All notable changes to Bench Tested are listed here.
 
 ### Added
 - Conference speakerphones and expansion mics without a camera (Logitech, Poly/Polycom, Jabra, EPOS) are now detected. They get an audio-only page.
+- Conference cams built as a hub with separate audio and video parts (e.g. Logitech ConferenceCam Connect) are detected.
+
+### Fixed
+- Zebras whose USB connection doesn't come back after a factory reset or calibration are reconnected in software, instead of needing a replug. Needs `./install.sh` to be run again once.
 
 ## [2.0] Bench Tested, 2026-10-27
 

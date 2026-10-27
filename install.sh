@@ -49,9 +49,9 @@ update-desktop-database "$APPS" 2>/dev/null || true
 echo "==> Device access"
 RULES=/etc/udev/rules.d/70-bench-tested.rules
 if ! cmp -s 70-bench-tested.rules "$RULES" 2>/dev/null; then
-    echo "    Letting you read dictation-mic buttons and signature pads (udev rule)"
+    echo "    Letting you read dictation-mic buttons and signature pads, and reconnect Zebras (udev rule)"
     sudo install -m644 70-bench-tested.rules "$RULES"
-    sudo udevadm control --reload-rules && sudo udevadm trigger --subsystem-match=hidraw --subsystem-match=tty
+    sudo udevadm control --reload-rules && sudo udevadm trigger --subsystem-match=hidraw --subsystem-match=tty --subsystem-match=usb
 fi
 relog=0
 add_group() {   # group, reason

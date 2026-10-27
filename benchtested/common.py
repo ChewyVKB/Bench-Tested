@@ -1,12 +1,14 @@
 """Shared helpers: commands, settings, USB detection, Code 128, CUPS."""
 
 import datetime  # noqa: F401  (re-exported for modules)
+import fcntl
 import glob
 import json
 import os
 import re
 import shlex
 import shutil
+import struct
 import subprocess
 import sys  # noqa: F401
 import tempfile  # noqa: F401
@@ -250,6 +252,63 @@ def classify(vid, product, ifaces, serial="", removable="", parent_vid=""):
             ("03" in classes or "02" in classes or "0a" in classes):
         return "scanner"
     return None
+
+
+# ------------------------------------------------------------------ software replug
+# usbfs ioctls (linux/usbdevice_fs.h) - what libusb uses to re-attach drivers and reset
+_U = ord("U")
+USBDEVFS_RESET = (_U << 8) | 20
+USBDEVFS_CONNECT = (_U << 8) | 23
+USBDEVFS_IOCTL = (3 << 30) | (struct.calcsize("iiP") << 16) | (_U << 8) | 18
+
+
+def usb_node(sysdir):
+    """/dev/bus/usb/BBB/DDD for a USB device."""
+    b, n = read_file(sysdir + "/busnum"), read_file(sysdir + "/devnum")
+    return f"/dev/bus/usb/{int(b):03d}/{int(n):03d}" if b.isdigit() and n.isdigit() else None
+
+
+def iface_drivers(sysdir):
+    """{interface number: (class, driver name or '')}"""
+    out = {}
+    base = os.path.basename(sysdir)
+    for i in glob.glob(os.path.join(sysdir, base + ":*")):
+        drv = os.path.basename(os.path.realpath(i + "/driver")) if os.path.exists(i + "/driver") else ""
+        try:
+            num = int(read_file(i + "/bInterfaceNumber") or "0", 16)
+        except ValueError:
+            continue
+        out[num] = (read_file(i + "/bInterfaceClass").lower(), drv)
+    return out
+
+
+def usb_replug(sysdir, iface_class="07", reset=False):
+    """Do in software what unplugging and replugging does. First re-attaches the kernel
+    driver to interfaces that lost it; with reset=True (or if that isn't enough) resets
+    the USB connection, so the device re-enumerates. Returns (done, what happened)."""
+    node = usb_node(sysdir)
+    if not node:
+        return False, "the device is no longer connected"
+    try:
+        fd = os.open(node, os.O_RDWR)
+    except OSError as e:
+        return False, f"no access to {node} ({e.strerror})"
+    try:
+        if not reset:
+            loose = [n for n, (c, drv) in iface_drivers(sysdir).items() if c == iface_class and not drv]
+            for n in loose:
+                try:
+                    fcntl.ioctl(fd, USBDEVFS_IOCTL, struct.pack("iiP", n, USBDEVFS_CONNECT, 0))
+                except OSError:
+                    pass
+            if loose and all(drv for n, (c, drv) in iface_drivers(sysdir).items() if c == iface_class):
+                return True, "re-attached its driver"
+        fcntl.ioctl(fd, USBDEVFS_RESET, 0)
+        return True, "reset its USB connection"
+    except OSError as e:
+        return False, f"the reset failed ({e.strerror})"
+    finally:
+        os.close(fd)
 
 
 _DB_NAMES = {}

@@ -11,3 +11,7 @@ SUBSYSTEM=="hidraw", ATTRS{idVendor}=="df04", TAG+="uaccess"
 SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{serial}=="TOPAZ*", TAG+="uaccess"
 SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{serial}=="eSign*", TAG+="uaccess"
 SUBSYSTEM=="hidraw", ATTRS{idVendor}=="06a8", TAG+="uaccess"
+
+# Zebra label printers - lets the app "replug" a printer in software when its USB
+# connection doesn't come back after a factory reset or calibration
+SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="0a5f", TAG+="uaccess"

@@ -632,14 +632,42 @@ class PrinterMixin:
             return False
         GLib.idle_add(_do)
 
+    def zebra_reconnect(self, d, reset=False):
+        """Replug the printer in software and wait for /dev/usb/lp* to come back: first by
+        re-attaching its driver, then if needed by resetting its USB connection.
+        Returns the new device path or None."""
+        for step_reset, wait in ((False, 4), (True, 10)):
+            if reset and not step_reset:
+                continue
+            cur = self.find_again(d["key"], "Zebra") or d
+            ok, how = usb_replug(cur["sysdir"], "07", step_reset)
+            if not ok:
+                self.log(f"Couldn't reconnect the printer automatically: {how}.")
+                if how.startswith("no access"):
+                    self.log("Run ./install.sh again - it adds the permission for this.")
+                return None
+            end = time.time() + wait
+            while time.time() < end:
+                time.sleep(1)
+                again = self.find_again(d["key"], "Zebra")
+                if again and again["lp"] and os.path.exists(again["lp"]):
+                    time.sleep(1)                     # let permissions settle on the new node
+                    d["lp"], d["sysdir"] = again["lp"], again["sysdir"]
+                    self.log(f"Reconnected the printer ({how}).")
+                    return again["lp"]
+        self.log("The printer didn't come back after reconnecting.")
+        return None
+
     def zebra_dev(self, d):
         if not d:
             self.log("No printer selected.")
             return None
         if not d["lp"]:
-            self.log("This Zebra isn't available as /dev/usb/lp*. Try unplugging it and "
-                     "plugging it back in. If that doesn't help, run:  sudo modprobe usblp")
-            return None
+            self.log("The printer's USB connection dropped - reconnecting it…")
+            if not self.zebra_reconnect(d):
+                self.log("This Zebra isn't available as /dev/usb/lp*. Unplug it and plug it back in. "
+                         "If that doesn't help, run:  sudo modprobe usblp")
+                return None
         if not os.access(d["lp"], os.W_OK):
             self.log(f"No permission to use {d['lp']}. Run this once in a terminal, then log "
                      "out and back in:  sudo usermod -aG lp $USER")
@@ -647,19 +675,36 @@ class PrinterMixin:
         return d["lp"]
 
     def zebra_wait_detect(self, d, secs):
-        """Keep asking until the printer answers (it's silent while busy)."""
-        end = time.time() + secs
+        """Keep asking until the printer answers (it's silent while busy). After a factory
+        reset or calibration the printer restarts its USB connection, and Linux sometimes
+        doesn't reconnect it - so if it stays gone or silent, replug it in software."""
+        start = time.time()
+        end = start + secs
         dev = d["lp"]
+        missing_since = None
+        replugged = False
         while time.time() < end:
             if not dev or not os.path.exists(dev):
                 again = self.find_again(d["key"], "Zebra")
                 dev = again["lp"] if again else None
                 if not dev:
-                    time.sleep(2)
+                    missing_since = missing_since or time.time()
+                    if not replugged and again and time.time() - missing_since > 6:
+                        replugged = True
+                        self.log("The printer didn't reconnect after restarting - reconnecting it…")
+                        dev = self.zebra_reconnect(d)
+                    if not dev:
+                        time.sleep(2)
                     continue
+            missing_since = None
             r = zebra_detect(dev)
             if r:
                 return dev, r
+            if not replugged and time.time() - start > 30:
+                replugged = True
+                self.log("The printer isn't answering - reconnecting it…")
+                dev = self.zebra_reconnect(d, reset=True) or dev
+                continue
             time.sleep(2)
         return dev, None
 

@@ -32,7 +32,8 @@
 
 | Problem | Fix |
 |---|---|
-| "not available as /dev/usb/lp*" | Replug the printer. If that doesn't help, run `sudo modprobe usblp`. |
+| "not available as /dev/usb/lp*" | Bench Tested reconnects the printer by itself. If it says it couldn't, run `./install.sh` again, or replug the printer. Still nothing? Run `sudo modprobe usblp`. |
+| "Couldn't read the label size" after a factory reset | The printer restarts its USB connection after a reset, and Ubuntu sometimes doesn't reconnect it. Bench Tested now reconnects it automatically; if you still see this, run `./install.sh` again. |
 | "No permission to use /dev/usb/lp…" | Run `sudo usermod -aG lp $USER`, then log out and back in. |
 | Wrong label size detected | Run **Calibrate**, then print again. Or pick the size by hand under **Label size**. |
 | Prints garbage or the raw code | Switch **Printer language** to the other setting (ZPL or EPL). |
