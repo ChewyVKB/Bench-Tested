@@ -213,9 +213,12 @@ def usb_interfaces(sysdir):
     return out
 
 
-def classify(vid, product, ifaces, serial="", removable=""):
+def classify(vid, product, ifaces, serial="", removable="", parent_vid=""):
     """Which category a USB device belongs to (or None)."""
     classes = {c for c, _s, _p in ifaces}
+    # "fixed" = wired to a hub permanently. That's the laptop's own camera/audio - unless the
+    # hub belongs to the same product (conference cams are a hub with audio + video inside)
+    builtin = removable == "fixed" and parent_vid != vid
     if vid == "06a8" or re.search(r"topaz", f"{product} {serial}", re.I) or \
             (vid == "0403" and re.fullmatch(r"e-?sign\w*", serial, re.I)):
         # Topaz: own USB id (HID models), or an FTDI serial chip whose serial number is
@@ -232,10 +235,10 @@ def classify(vid, product, ifaces, serial="", removable=""):
     if vid in MIC_VENDORS and re.search(MIC_NAMES, product, re.I):
         return "mic"
     if "0e" in classes:                  # USB video: webcams, conference cameras
-        if removable == "fixed" or re.search(r"integrated|built-?in", product, re.I):
+        if builtin or re.search(r"integrated|built-?in", product, re.I):
             return None                   # the laptop's own camera
         return "camera"
-    if "01" in classes and vid in CONF_AUDIO_VENDORS and removable != "fixed":
+    if "01" in classes and vid in CONF_AUDIO_VENDORS and not builtin:
         return "camera"                   # speakerphone / conference audio without a camera
     if vid in PRINTER_VENDORS and ("07" in classes or re.search(r"label", product, re.I)):
         return "printer"
@@ -280,7 +283,8 @@ def scan_usb():
             product = db_names(os.path.realpath(d))[1]
         ifaces = usb_interfaces(d)
         serial = read_file(d + "/serial")
-        cat = classify(vid, product, ifaces, serial, read_file(d + "/removable"))
+        parent_vid = read_file(os.path.dirname(os.path.realpath(d)) + "/idVendor").lower()
+        cat = classify(vid, product, ifaces, serial, read_file(d + "/removable"), parent_vid)
         if not cat:
             continue
         if cat == "printer":
