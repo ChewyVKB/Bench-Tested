@@ -200,7 +200,7 @@ If the scanner isn't found, check that it's switched on, then click **Look for s
 
 ## Topaz signature pads
 
-Works with Topaz serial pads, both **BSB** models (for example the T-LBK462-BSB-R) and **eSign** models on a USB-B printer-style cable.
+Works with Topaz serial pads, both **BSB** models (for example the T-LBK462-BSB-R) and **eSign** models on a USB-B printer-style cable, and with Topaz **USB HID** pads (listed as *Topaz HID Tablet*).
 
 **Steps**
 

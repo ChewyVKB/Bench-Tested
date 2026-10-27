@@ -8,6 +8,8 @@ All notable changes to Bench Tested are listed here.
 - Conference speakerphones and expansion mics without a camera (Logitech, Poly/Polycom, Jabra, EPOS) are now detected. They get an audio-only page.
 - Conference cams built as a hub with separate audio and video parts (e.g. Logitech ConferenceCam Connect) are detected.
 
+- Topaz USB HID signature pads (`06a8:0043`, *Topaz HID Tablet*): live ink, hover dot, edge check and saved signatures, the same as serial pads.
+
 ### Fixed
 - Zebras whose USB connection doesn't come back after a factory reset or calibration are reconnected in software, instead of needing a replug. Needs `./install.sh` to be run again once.
 

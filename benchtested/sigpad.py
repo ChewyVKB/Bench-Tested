@@ -1,4 +1,4 @@
-"""Signature pads (Topaz serial "BSB" models): draw what's written on the pad live,
+"""Signature pads (Topaz serial "BSB"/eSign models and USB HID models): draw what's written on the pad live,
 check the whole writing area works, save the signature as proof."""
 
 import select
@@ -16,6 +16,7 @@ except Exception:  # pragma: no cover
 # Topaz BSB pads: 19200 baud, 7 data bits, odd parity. 5-byte packets:
 #   [status (bit 7 set, bit 0 = pen down)] [x low 7] [x high 7] [y low 7] [y high 7]
 TOPAZ_DEFAULT_BOUNDS = (500, 350, 2650, 1050)    # x0, y0, x1, y1 - grows if the pad reports more
+TOPAZ_HID_BOUNDS = (500, 450, 2270, 985)          # USB HID pads (06a8:0043), measured corner to corner
 PROOF_DIR = os.path.expanduser("~/Pictures/Bench Tested")
 
 
@@ -226,6 +227,88 @@ class PadReader:
                 os.close(fd)
 
 
+def hidraw_nodes(sysdir):
+    nodes = []
+    for h in glob.glob("/sys/class/hidraw/hidraw*"):
+        if os.path.realpath(h + "/device").startswith(sysdir + "/"):
+            nodes.append("/dev/" + os.path.basename(h))
+    return sorted(nodes, key=lambda p: int(re.sub(r"\D", "", p) or 0))
+
+
+def hid_payload(report):
+    """Topaz HID pads tunnel the serial pad's byte stream through 8-byte reports:
+    [number of valid bytes] [up to 7 bytes of the stream]. A 5-byte pen packet can be
+    split across two reports, so the caller joins the payloads before decoding."""
+    n = report[0] if report else 0
+    if 0 < n <= len(report) - 1:
+        return bytes(report[1:1 + n])
+    return b""
+
+
+class HidPadReader:
+    """Reads a Topaz USB (HID) pad in the background - same callbacks as PadReader.
+    The pen packets are the same 5-byte ones the serial pads send."""
+
+    profile = "USB HID"
+
+    def __init__(self, d, on_points, on_state, on_raw=None, on_profile=None, remembered=None):
+        self.d, self.on_points, self.on_state = d, on_points, on_state
+        self.on_raw = on_raw or (lambda n, last: None)
+        self.stop_flag = False
+        threading.Thread(target=self._run, daemon=True).start()
+
+    def stop(self):
+        self.stop_flag = True
+
+    def _run(self):
+        nodes = hidraw_nodes(self.d["sysdir"])
+        if not nodes:
+            self.on_state("noport")
+            return
+        node = nodes[0]
+        try:
+            fd = os.open(node, os.O_RDONLY | os.O_NONBLOCK)
+        except PermissionError:
+            self.on_state("noperm")
+            return
+        except OSError:
+            self.on_state("noport")
+            return
+        others = port_users(node)
+        self.on_state("busy:" + ", ".join(others) if others else "listening")
+        buf, total, last_report, tail = b"", 0, 0.0, b""
+        try:
+            while not self.stop_flag:
+                r, _w, _x = select.select([fd], [], [], 0.05)
+                if not r:
+                    continue
+                try:
+                    report = os.read(fd, 64)
+                except BlockingIOError:
+                    continue
+                except OSError:
+                    self.on_state("gone")
+                    return
+                if not report:
+                    self.on_state("gone")
+                    return
+                chunk = hid_payload(report)
+                total += len(chunk)
+                tail = (tail + chunk)[-15:]
+                if time.time() - last_report > 0.3:
+                    last_report = time.time()
+                    self.on_raw(total, tail)
+                pts, buf = parse_topaz(buf + chunk)
+                if pts:
+                    self.on_points(pts)
+        finally:
+            os.close(fd)
+
+
+def pad_is_hid(d):
+    return d.get("vid") == "06a8"
+
+
 class SigPadMixin:
     """Signature-pad page; mixed into the main window."""
 
@@ -237,7 +320,7 @@ class SigPadMixin:
         if s is None:
             b = self.cfg.get("sigpad_bounds", {}).get(pad_model(d))
             s = {"strokes": [], "reader": None, "state": "starting", "points": 0,
-                 "bounds": list(b or TOPAZ_DEFAULT_BOUNDS), "seen": None, "pen_was_down": False, "hover": None,
+                 "bounds": list(b or (TOPAZ_HID_BOUNDS if pad_is_hid(d) else TOPAZ_DEFAULT_BOUNDS)), "seen": None, "pen_was_down": False, "hover": None,
                  "last_t": 0.0}
             self.pad_state[d["key"]] = s
         return s
@@ -254,9 +337,9 @@ class SigPadMixin:
         for key, d in pads.items():
             s = self.pad_info(d)
             s["plug"] = d.get("plug")
-            if s["reader"] is None and d["vid"] == "0403":
+            if s["reader"] is None and d["vid"] in ("0403", "06a8"):
                 s["started"] = time.time()
-                s["reader"] = PadReader(
+                s["reader"] = (HidPadReader if pad_is_hid(d) else PadReader)(
                     d, lambda p, k=key: GLib.idle_add(self.pad_points, k, p),
                     lambda st, k=key: GLib.idle_add(self.pad_state_changed, k, st),
                     lambda n, last, k=key: GLib.idle_add(self.pad_raw, k, n, last),
@@ -266,10 +349,11 @@ class SigPadMixin:
     def sigpad_tick(self):
         """Runs every second: the pad's serial port appears a moment after the USB device."""
         for d in self.devices:
-            if d["category"] != "sigpad" or d["vid"] != "0403":
+            if d["category"] != "sigpad" or d["vid"] not in ("0403", "06a8"):
                 continue
             s = self.pad_info(d)
-            if s["state"] in ("noport", "gone", "noperm") and tty_nodes(d["sysdir"]) and \
+            nodes = hidraw_nodes(d["sysdir"]) if pad_is_hid(d) else tty_nodes(d["sysdir"])
+            if s["state"] in ("noport", "gone", "noperm") and nodes and \
                     time.time() - s.get("started", 0) > 1.0:
                 if s["reader"]:
                     s["reader"].stop()
@@ -408,9 +492,9 @@ class SigPadMixin:
 
     def pad_refresh(self, d):
         s = self.pad_info(d)
-        if d["vid"] != "0403":
-            text = ("This looks like a USB (HID) Topaz model. Only the serial 'BSB' models are "
-                    "supported so far - if you write on it, the pad's own screen still shows the ink.")
+        if d["vid"] not in ("0403", "06a8"):
+            text = ("This Topaz model isn't supported yet - if you write on it, the pad's own "
+                    "screen still shows the ink.")
         else:
             busy = s["state"].startswith("busy:")
             text = ("⚠ Another program is also reading the pad, so the data may not reach Bench "
@@ -419,9 +503,12 @@ class SigPadMixin:
                 "listening": "✔ Listening to the pad.",
                 **({s["state"]: f"Working out this pad's settings… (trying {s['state'][7:]}) - "
                     "keep writing on it."} if s["state"].startswith("trying:") else {}),
-                "noperm": "No permission to read the pad. Log out and back in once after installing "
-                          "(or run 'sudo usermod -aG dialout $USER').",
-                "noport": "The pad's serial port isn't there - unplug it and plug it back in.",
+                "noperm": ("No permission to read the pad. Run ./install.sh again, then unplug and "
+                           "replug the pad." if pad_is_hid(d) else
+                           "No permission to read the pad. Log out and back in once after installing "
+                           "(or run 'sudo usermod -aG dialout $USER')."),
+                "noport": "The pad's " + ("USB connection" if pad_is_hid(d) else "serial port") +
+                          " isn't there - unplug it and plug it back in.",
                 "gone": "The pad was unplugged.",
             }.get(s["state"], "Connecting…")
         if not HAVE_CAIRO:

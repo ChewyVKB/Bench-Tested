@@ -112,7 +112,16 @@ Models differ only in port speed:
 | BSB (serial `TOPAZ…`) | 19200 baud, 7 data bits, odd parity, 1 stop bit |
 | eSign | 115200 baud, 8 data bits, no parity, 1 stop bit |
 
-For an unknown model, each profile is tried in turn. The first one where at least 80% of packets decode cleanly is kept and remembered for that serial number.
+**USB HID pads** (`06a8:0043`, *Topaz HID Tablet*) send the same 5-byte packets, tunnelled through 8-byte HID reports read from `/dev/hidraw*`:
+
+| Byte | Content |
+|---|---|
+| 1 | How many of the following bytes are valid (usually 5) |
+| 2–8 | The next bytes of the pen stream |
+
+A packet can be split across two reports, so the payloads are joined before decoding. These pads report a slightly smaller area (about x 500–2270, y 450–985), so they get their own edge-check limits.
+
+For an unknown serial model, each profile is tried in turn. The first one where at least 80% of packets decode cleanly is kept and remembered for that serial number.
 
 ## Cameras and conference hubs
 

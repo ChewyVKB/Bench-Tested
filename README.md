@@ -34,7 +34,7 @@
 | **Barcode scanners** | Live per-scanner scan view, 1D and 2D test codes with automatic ✓ checks, printable test sheet, factory-reset code library | Scan log with times |
 | **Dictation mics** | 3-second record and playback through the mic's own speaker, a check for every button, trackball test | Log with peak level and button results |
 | **Document scanners** | Scans the whole feeder stack, flags blank pages and streaks | Every page saved as an image |
-| **Topaz signature pads** | Live ink on screen, four-edge check, works with both BSB and eSign models | Saved signature image with model and serial number |
+| **Topaz signature pads** | Live ink on screen, four-edge check, works with serial (BSB, eSign) and USB HID models | Saved signature image with model and serial number |
 | **Cameras & conference hubs** | Live preview, camera controls, pan/tilt/zoom test, speaker → mic check | Saved photo |
 
 Several devices can be tested at the same time. Only the device that's busy is locked.
