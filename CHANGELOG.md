@@ -2,6 +2,11 @@
 
 All notable changes to Bench Tested are listed here.
 
+## [Unreleased]
+
+### Added
+- Conference speakerphones and expansion mics without a camera (Logitech, Poly/Polycom, Jabra, EPOS) are now detected. They get an audio-only page.
+
 ## [2.0] Bench Tested, 2026-10-27
 
 The Label Printer Tester grew into a testing bench for every kind of office device it's used to sell.

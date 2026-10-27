@@ -221,6 +221,7 @@ class CameraMixin:
         cf.add(cbox)
         top.pack_start(cf, True, True, 0)
         page.pack_start(top, False, False, 0)
+        self.c_top = top
 
         # ---- audio
         self.c_audio = Gtk.Frame(label=" Audio (conference hubs, webcams with a mic) ")
@@ -268,7 +269,7 @@ class CameraMixin:
 
             def _load():
                 nodes = []
-                for _ in range(6):                     # the video node can appear a moment after USB
+                for _ in range(1 if d.get("audio_only") else 6):   # video node can appear a moment after USB
                     nodes = video_nodes(d["sysdir"])
                     if nodes:
                         break
@@ -286,7 +287,12 @@ class CameraMixin:
                 GLib.idle_add(lambda: (d["key"] == self.selected_key and self.camera_select(d), False)[1])
             self.in_thread(_load)
             return
-        if not s["node"]:
+        audio_only = d.get("audio_only") and not s["node"]
+        self.c_top.set_visible(not audio_only)
+        if audio_only:
+            self.c_status.set_text("Audio device (speakerphone / conference mic) - no camera. "
+                                   "Test it with the audio checks below.")
+        elif not s["node"]:
             self.c_status.set_text("Ubuntu doesn't show a camera for this device yet. Unplug it and plug it "
                                    "back in; some conference cameras need their own setup app first.")
         elif Gst is None:

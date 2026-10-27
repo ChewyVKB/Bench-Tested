@@ -49,6 +49,9 @@ DOCSCAN_VENDORS = {
     "040a": ("Kodak Alaris", r"scanner|\bi\d{3,4}\b|\bS\d{4}"),
     "0638": ("Avision", r"scanner|\bAD\d"),
 }
+# conference audio (speakerphones, expansion mics) - listed with cameras even without video
+CONF_AUDIO_VENDORS = {"046d": "Logitech", "095d": "Polycom", "047f": "Poly / Plantronics",
+                      "0b0e": "Jabra", "1395": "EPOS / Sennheiser"}
 SKIP_VENDORS = {"df04"}   # PowerMic trackball - shown as part of the mic
 
 SCANNER_VENDORS = {
@@ -232,6 +235,8 @@ def classify(vid, product, ifaces, serial="", removable=""):
         if removable == "fixed" or re.search(r"integrated|built-?in", product, re.I):
             return None                   # the laptop's own camera
         return "camera"
+    if "01" in classes and vid in CONF_AUDIO_VENDORS and removable != "fixed":
+        return "camera"                   # speakerphone / conference audio without a camera
     if vid in PRINTER_VENDORS and ("07" in classes or re.search(r"label", product, re.I)):
         return "printer"
     if "07" in classes:
@@ -289,7 +294,8 @@ def scan_usb():
         elif cat == "camera":
             brand = read_file(d + "/manufacturer") or db_names(os.path.realpath(d))[0] or "Camera"
             brand = re.sub(r",? ?(Inc|Ltd|Corp|Co)\.?.*$", "", brand).strip() or "Camera"
-            product = product or db_names(os.path.realpath(d))[1] or "USB camera"
+            product = product or db_names(os.path.realpath(d))[1] or \
+                ("USB camera" if "0e" in {c for c, _s, _p in ifaces} else "USB speakerphone")
         elif cat == "mic":
             brand = MIC_VENDORS.get(vid) or read_file(d + "/manufacturer") or "Mic"
         else:
@@ -305,12 +311,19 @@ def scan_usb():
             "sysdir": os.path.realpath(d),
             "ifaces": ifaces,
             "lp": None,
+            "audio_only": cat == "camera" and not any(c == "0e" for c, _s, _p in ifaces),
         })
     for lp in glob.glob("/sys/class/usbmisc/lp*"):
         parent = os.path.dirname(os.path.realpath(lp + "/device"))
         for dv in devs:
             if dv["sysdir"] == parent:
                 dv["lp"] = "/dev/usb/" + os.path.basename(lp)
+    # a conference system can be several USB devices behind its own hub: when the camera
+    # is there too, its audio is tested on the camera's page, so don't list it twice
+    cams = {(os.path.dirname(dv["sysdir"]), dv["vid"]) for dv in devs
+            if dv["category"] == "camera" and not dv["audio_only"]}
+    devs = [dv for dv in devs if not (dv["audio_only"] and
+                                      (os.path.dirname(dv["sysdir"]), dv["vid"]) in cams)]
     for dv in devs:
         dv["key"] = dv["serial"] or dv["sysdir"]
         # changes every time the device is plugged in (USB gives it a new number), so a

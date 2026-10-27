@@ -220,6 +220,8 @@ Works with Topaz serial pads, both **BSB** models (for example the T-LBK462-BSB-
 
 Works with USB webcams and conference cameras and speakerphones from Logitech, Poly, Owl Labs and others. The laptop's own built-in camera and dock audio are ignored.
 
+**Speakerphones and expansion mics** without a camera (Logitech, Poly/Polycom, Jabra, EPOS) are listed here too. Their page shows only the audio tests.
+
 **Camera**
 
 1. Plug the camera in and click it in the list. A live preview starts.
