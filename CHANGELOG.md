@@ -45,5 +45,5 @@ The Label Printer Tester grew into a testing bench for every kind of office devi
 - Printing on several printers at once.
 - Clean-up of stale printer entries.
 
-[2.0]: https://github.com/ChewyVKB/Bench-Tested/releases/tag/v2.0
-[1.0]: https://github.com/ChewyVKB/Bench-Tested/releases/tag/v1.0-label-printers
+[2.0]: https://github.com/ChewyVKB/Bench-Tested/tree/main
+[1.0]: https://github.com/ChewyVKB/Bench-Tested/tree/001287e
