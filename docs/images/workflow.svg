@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="230" viewBox="0 0 1200 230">
+  <rect width="1200" height="230" rx="14" fill="#f6f7f9"/>
+  <g font-family="Inter, 'Segoe UI', Helvetica, Arial, sans-serif">
+    <g id="steps">
+      <rect x="30" y="30" width="250" height="170" rx="14" fill="#fff" stroke="#dfe3e8"/>
+      <circle cx="74" cy="74" r="22" fill="#2f80ed"/><text x="74" y="82" text-anchor="middle" font-size="22" font-weight="700" fill="#fff">1</text>
+      <text x="58" y="132" font-size="21" font-weight="700" fill="#1b2533">Plug it in</text>
+      <text x="58" y="160" font-size="15" fill="#5b6574">It appears on the left,</text>
+      <text x="58" y="180" font-size="15" fill="#5b6574">grouped by device type.</text>
+
+      <rect x="320" y="30" width="250" height="170" rx="14" fill="#fff" stroke="#dfe3e8"/>
+      <circle cx="364" cy="74" r="22" fill="#2f80ed"/><text x="364" y="82" text-anchor="middle" font-size="22" font-weight="700" fill="#fff">2</text>
+      <text x="348" y="132" font-size="21" font-weight="700" fill="#1b2533">Pick it</text>
+      <text x="348" y="160" font-size="15" fill="#5b6574">Its page opens with the</text>
+      <text x="348" y="180" font-size="15" fill="#5b6574">right tests and options.</text>
+
+      <rect x="610" y="30" width="250" height="170" rx="14" fill="#fff" stroke="#dfe3e8"/>
+      <circle cx="654" cy="74" r="22" fill="#2f80ed"/><text x="654" y="82" text-anchor="middle" font-size="22" font-weight="700" fill="#fff">3</text>
+      <text x="638" y="132" font-size="21" font-weight="700" fill="#1b2533">Test it</text>
+      <text x="638" y="160" font-size="15" fill="#5b6574">Print, scan, talk, sign or</text>
+      <text x="638" y="180" font-size="15" fill="#5b6574">look - checks fill in live.</text>
+
+      <rect x="900" y="30" width="270" height="170" rx="14" fill="#fff" stroke="#dfe3e8"/>
+      <circle cx="944" cy="74" r="22" fill="#27ae60"/><path d="M934 75 l7 7 l13 -14" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="928" y="132" font-size="21" font-weight="700" fill="#1b2533">Keep the proof</text>
+      <text x="928" y="160" font-size="15" fill="#5b6574">Timestamped labels, scans,</text>
+      <text x="928" y="180" font-size="15" fill="#5b6574">photos and signatures.</text>
+    </g>
+    <g fill="#b9c2ce"><path d="M292 115 l16 0 l0 -8 l12 12 l-12 12 l0 -8 l-16 0z"/><path d="M582 115 l16 0 l0 -8 l12 12 l-12 12 l0 -8 l-16 0z"/><path d="M872 115 l16 0 l0 -8 l12 12 l-12 12 l0 -8 l-16 0z"/></g>
+  </g>
+</svg>

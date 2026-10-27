@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f1b2d"/><stop offset="1" stop-color="#1c3354"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="300" rx="18" fill="url(#bg)"/>
+  <g font-family="Inter, 'Segoe UI', Helvetica, Arial, sans-serif">
+    <!-- mark: a check inside a rounded square -->
+    <rect x="64" y="70" width="96" height="96" rx="22" fill="#2f80ed"/>
+    <path d="M88 120 l20 20 l38 -42" fill="none" stroke="#fff" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="190" y="120" font-size="58" font-weight="700" fill="#ffffff">Bench Tested</text>
+    <text x="192" y="160" font-size="22" fill="#b7c6db">Plug it in. Test it. Keep the proof.</text>
+    <g font-size="16" font-weight="600" fill="#dbe6f5">
+      <rect x="64" y="212" width="146" height="40" rx="20" fill="#24406a"/><text x="137" y="238" text-anchor="middle">Label printers</text>
+      <rect x="222" y="212" width="170" height="40" rx="20" fill="#24406a"/><text x="307" y="238" text-anchor="middle">Barcode scanners</text>
+      <rect x="404" y="212" width="150" height="40" rx="20" fill="#24406a"/><text x="479" y="238" text-anchor="middle">Dictation mics</text>
+      <rect x="566" y="212" width="188" height="40" rx="20" fill="#24406a"/><text x="660" y="238" text-anchor="middle">Document scanners</text>
+      <rect x="766" y="212" width="162" height="40" rx="20" fill="#24406a"/><text x="847" y="238" text-anchor="middle">Signature pads</text>
+      <rect x="940" y="212" width="196" height="40" rx="20" fill="#24406a"/><text x="1038" y="238" text-anchor="middle">Cameras &amp; hubs</text>
+    </g>
+  </g>
+</svg>
