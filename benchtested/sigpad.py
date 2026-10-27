@@ -16,7 +16,9 @@ except Exception:  # pragma: no cover
 # Topaz BSB pads: 19200 baud, 7 data bits, odd parity. 5-byte packets:
 #   [status (bit 7 set, bit 0 = pen down)] [x low 7] [x high 7] [y low 7] [y high 7]
 TOPAZ_DEFAULT_BOUNDS = (500, 350, 2650, 1050)    # x0, y0, x1, y1 - grows if the pad reports more
-TOPAZ_HID_BOUNDS = (500, 450, 2270, 985)          # USB HID pads (06a8:0043), measured corner to corner
+TOPAZ_HID_BOUNDS = (500, 450, 2270, 985)
+AUTO_CLEAR_SECS = 4.0      # wipe the drawing after this long without pen input, like the pads do
+HOVER_TIMEOUT = 0.5        # hide the hover dot when the pad stops reporting the pen          # USB HID pads (06a8:0043), measured corner to corner
 PROOF_DIR = os.path.expanduser("~/Pictures/Bench Tested")
 
 
@@ -314,6 +316,26 @@ class SigPadMixin:
 
     def sigpad_init(self):
         self.pad_state = {}
+        GLib.timeout_add(250, self.pad_idle_tick)
+
+    def pad_idle_tick(self):
+        """Clear the drawing after a few seconds without pen input (the pad's own screen does
+        the same). The test results stay, and Save signature can still save the last one."""
+        now = time.time()
+        for key, s in list(self.pad_state.items()):
+            idle = now - s.get("last_input", now)
+            changed = False
+            if s["hover"] and idle > HOVER_TIMEOUT:
+                s["hover"] = None
+                changed = True
+            if any(s["strokes"]) and now - s.get("last_down", now) >= AUTO_CLEAR_SECS:
+                s["last_sig"] = s["strokes"]
+                s["strokes"] = []
+                s["pen_was_down"] = False
+                changed = True
+            if changed and key == self.selected_key:
+                self.p_canvas.queue_draw()
+        return True
 
     def pad_info(self, d):
         s = self.pad_state.get(d["key"])
@@ -412,11 +434,13 @@ class SigPadMixin:
                 s["strokes"].append([])
             s["strokes"][-1].append((x, y))
             s["pen_was_down"] = True
+            s["last_down"] = now
             s["points"] += 1
             sx = s["seen"]
             s["seen"] = [x, y, x, y] if sx is None else [min(sx[0], x), min(sx[1], y),
                                                          max(sx[2], x), max(sx[3], y)]
         s["last_t"] = now
+        s["last_input"] = now
         if key == self.selected_key and any(not p[0] for p in pts):
             self.p_canvas.queue_draw()
         if s["points"] and not s.get("logged"):
@@ -455,7 +479,9 @@ class SigPadMixin:
         for w in (self.p_title, self.p_sub, self.p_status):
             page.pack_start(w, False, False, 0)
         page.pack_start(lbl("Sign on the pad - it shows up below as you write. Then run the pen into "
-                            "all four edges to check the whole writing area works.", wrap=True), False, False, 0)
+                            "all four edges to check the whole writing area works.\nLike the pad, the drawing clears "
+                            "itself 4 seconds after you stop writing - Save signature still saves the last one.",
+                            wrap=True), False, False, 0)
         frame = Gtk.Frame()
         self.p_canvas = Gtk.DrawingArea()
         self.p_canvas.set_size_request(-1, 230)
@@ -588,7 +614,7 @@ class SigPadMixin:
         if not d:
             return
         s = self.pad_info(d)
-        s.update(strokes=[], points=0, seen=None, logged=False, hover=None)
+        s.update(strokes=[], points=0, seen=None, logged=False, hover=None, last_sig=None)
         self.set_row_status(d["key"], "")
         self.pad_refresh(d)
         self.p_canvas.queue_draw()
@@ -598,13 +624,14 @@ class SigPadMixin:
         if not d:
             return
         s = self.pad_info(d)
-        if not s["points"]:
+        strokes = s["strokes"] if any(s["strokes"]) else (s.get("last_sig") or [])
+        if not s["points"] or not any(strokes):
             self.log("Nothing to save yet - sign on the pad first.")
             return
         W, H = 900, 300
         f, box = self._pad_xform(s, W, H, self.p_flip.get_active())
         paths = []
-        for stroke in s["strokes"]:
+        for stroke in strokes:
             if stroke:
                 pts = " ".join(f"{x:.1f},{y:.1f}" for x, y in (f(*p) for p in stroke))
                 paths.append(f'<polyline points="{pts}" fill="none" stroke="#0d2690" stroke-width="2.5" '

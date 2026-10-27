@@ -209,6 +209,8 @@ Works with Topaz serial pads, both **BSB** models (for example the T-LBK462-BSB-
 3. **Edge check:** run the pen off all four edges of the writing area. The status line counts the edges reached: *✓ pen works · edges reached 4/4*.
 4. Click **Save signature** to keep a timestamped image with the model and serial number on it.
 
+Like the pad's own screen, the drawing clears itself **4 seconds after you stop writing**. The ✓ checks stay. **Save signature** still saves the last signature after it has cleared.
+
 | Button | What it does |
 |---|---|
 | **Clear** | Wipes the drawing to try again |
