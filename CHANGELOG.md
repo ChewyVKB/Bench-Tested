@@ -5,6 +5,12 @@ All notable changes to Bench Tested are listed here.
 ## [Unreleased]
 
 ### Added
+- **Test certificates.** A PDF for every unit, pass or fail:
+  - asset tag (scanned with a designated asset tag scanner, or typed) and certificate number
+  - make, model, serial number and everything the device reports about itself
+  - every test with its result, plus evidence and the unit's timestamped activity log
+  - technician sign-off, company name and logo
+  - a line in a CSV register for each certificate; units that were tested and unplugged without one get a certificate automatically
 - Conference speakerphones and expansion mics without a camera (Logitech, Poly/Polycom, Jabra, EPOS) are now detected. They get an audio-only page.
 - Conference cams built as a hub with separate audio and video parts (e.g. Logitech ConferenceCam Connect) are detected.
 - Topaz USB HID signature pads (`06a8:0043`, *Topaz HID Tablet*): live ink, hover dot, edge check and saved signatures, the same as serial pads.

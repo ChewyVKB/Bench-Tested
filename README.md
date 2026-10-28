@@ -39,6 +39,8 @@
 
 Several devices can be tested at the same time. Only the device that's busy is locked.
 
+**Test certificates.** Every unit gets a PDF certificate with its asset tag, make, model, serial number, everything the device reports about itself, each test result and a timestamped activity log, plus a line in a register spreadsheet. See [Test certificates](docs/USER-GUIDE.md#test-certificates).
+
 ## Quick start
 
 ```bash

@@ -31,7 +31,6 @@ MANUAL_CHECKS = {
     "sigpad": [("Pad's own screen shows the ink (LCD models)", False)],
     "camera": [("Picture is clear and in focus", True)],
 }
-GRADES = ["Not graded", "A - Like new", "B - Light wear", "C - Heavy wear", "D - Damaged / for parts"]
 
 
 def usb_extra(d):
@@ -74,7 +73,7 @@ class CertMixin:
         r = self.cert_recs.get(key)
         if r is None and create:
             r = {"key": key, "started": None, "events": [], "marks": {}, "asset": "", "plug": None,
-                 "gone_since": None, "manual": {}, "grade": GRADES[0], "notes": "", "result": "auto",
+                 "gone_since": None, "manual": {}, "notes": "", "result": "auto",
                  "files": [], "images": [], "last_cert": None}
             self.cert_recs[key] = r
         return r
@@ -224,7 +223,8 @@ class CertMixin:
         if fn:
             sig, images = fn(d, r, device, details, add, marks)
         for name, (status, detail, t) in marks.items():          # anything recorded along the way
-            checks.append((name, status, f"{detail}  ({t.strftime('%I:%M:%S %p').lstrip('0')})".strip()))
+            when = t.strftime('%I:%M:%S\u00a0%p').lstrip('0')      # keep "PM" with the time
+            checks.append((name, status, f"{detail}  ·  {when}" if detail else when))
         return device, details, checks, required, sig, images
 
     def _cert_printer(self, d, r, device, details, add, marks):
@@ -404,8 +404,6 @@ class CertMixin:
             v = r["manual"].get(name)
             checks.append((name, "pass" if v is True else "fail" if v is False else "skip",
                            "Confirmed by technician" if v is not None else ""))
-        if r["grade"] != GRADES[0]:
-            details.append(("Cosmetic grade (technician)", r["grade"]))
         now = datetime.datetime.now()
         cert_id = self.cert_next_id()
         note = ""
@@ -590,15 +588,8 @@ class CertMixin:
             grid.attach(c, 1, row, 1, 1)
             manual_w[name] = c
             row += 1
-        grade = Gtk.ComboBoxText()
-        for g in GRADES:
-            grade.append(g, g)
-        grade.set_active_id(r["grade"])
-        grid.attach(lbl("Cosmetic grade:"), 0, row, 1, 1)
-        grid.attach(grade, 1, row, 1, 1)
-        row += 1
         notes = Gtk.Entry(text=r["notes"])
-        notes.set_placeholder_text("Optional - e.g. scuffs on the lid, missing cable")
+        notes.set_placeholder_text("Optional - e.g. missing power supply")
         grid.attach(lbl("Notes:"), 0, row, 1, 1)
         grid.attach(notes, 1, row, 1, 1)
         row += 1
@@ -629,7 +620,6 @@ class CertMixin:
         resp = dlg.run()
         if resp == Gtk.ResponseType.OK:
             r["asset"] = tag.get_text().strip()
-            r["grade"] = grade.get_active_id() or GRADES[0]
             r["notes"] = notes.get_text().strip()
             r["result"] = result.get_active_id() or "auto"
             dlg.destroy()

@@ -36,6 +36,8 @@ STATUS = {"pass": ("PASS", GREEN), "fail": ("FAIL", colors.HexColor("#c0392b")),
           "info": ("INFO", GREY), "skip": ("NOT TESTED", colors.HexColor("#a3a6a8"))}
 
 _FONTS = None
+M = 0.65 * inch          # left/right edge of all content, header and footer
+FRAME_PAD = 6            # ReportLab's frame adds this inside the page margins
 
 
 def fonts():
@@ -59,8 +61,16 @@ def esc(text):
             .replace("\n", "<br/>"))
 
 
+def fmt_day(t):
+    return t.strftime("%b %d, %Y") if isinstance(t, datetime.datetime) else str(t or "-")
+
+
+def fmt_clock(t):
+    return t.strftime("%I:%M:%S %p").lstrip("0") if isinstance(t, datetime.datetime) else ""
+
+
 def fmt_time(t):
-    return t.strftime("%b %d, %Y  %I:%M:%S %p") if isinstance(t, datetime.datetime) else str(t or "-")
+    return (f"{fmt_day(t)}  {fmt_clock(t)}") if isinstance(t, datetime.datetime) else str(t or "-")
 
 
 class Pill(Flowable):
@@ -146,7 +156,7 @@ def build_pdf(path, data):
         "right": ParagraphStyle("right", fontName=regular, fontSize=8, textColor=MUTED, leading=10,
                                 alignment=TA_RIGHT),
     }
-    W = letter[0] - 1.2 * inch                     # usable width
+    W = letter[0] - 2 * M                           # everything lines up on the same two edges
     result = data.get("result", "INCOMPLETE")
     rcolor = RESULT_COLORS.get(result, MUTED)
     story = []
@@ -170,8 +180,9 @@ def build_pdf(path, data):
     id_cell = [Paragraph("CERTIFICATE NO.", st["label"]),
                Paragraph(esc(data.get("cert_id", "")), st["value"]), Spacer(1, 5),
                Paragraph("COMPLETED", st["label"]),
-               Paragraph(esc(fmt_time(data.get("completed"))), st["value"])]
-    band = Table([[tag_cell, res_cell, id_cell]], colWidths=[W * 0.42, W * 0.25, W * 0.33])
+               Paragraph(esc(fmt_day(data.get("completed"))) + "<br/>" + esc(fmt_clock(data.get("completed"))),
+                         st["value"])]
+    band = Table([[tag_cell, res_cell, id_cell]], colWidths=[W * 0.5, W * 0.25, W * 0.25], hAlign="LEFT")
     band.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, -1), BAND), ("BOX", (0, 0), (-1, -1), 0.6, LINE),
         ("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 12),
@@ -189,7 +200,7 @@ def build_pdf(path, data):
                 row = []
         if row:
             cells.append(row + [""] * (cols - len(row)))
-        t = Table(cells, colWidths=[W / cols] * cols)
+        t = Table(cells, colWidths=[W / cols] * cols, hAlign="LEFT")
         t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0),
                                ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
                                ("LINEBELOW", (0, 0), (-1, -2), 0.4, LINE)]))
@@ -209,12 +220,12 @@ def build_pdf(path, data):
         rows.append([Paragraph(esc(name), st["cellb"]), Pill(text, col), Paragraph(esc(detail or ""), st["cell"])])
     if len(rows) == 1:
         rows.append([Paragraph("No tests were run on this device.", st["cell"]), "", ""])
-    t = Table(rows, colWidths=[W * 0.32, W * 0.16, W * 0.52], repeatRows=1)
+    # details column starts at the halfway line, like the second column of the tables above
+    t = Table(rows, colWidths=[W * 0.34, W * 0.16, W * 0.5], repeatRows=1, hAlign="LEFT")
     t.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("LINEBELOW", (0, 0), (-1, -1), 0.4, LINE),
         ("TOPPADDING", (0, 0), (-1, -1), 5), ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-        ("LEFTPADDING", (0, 0), (-1, -1), 4),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#fafbfc")])]))
+        ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 8)]))
     passed = sum(1 for c in checks if c[1] == "pass")
     failed = sum(1 for c in checks if c[1] == "fail")
     story += [Paragraph(f"Test results <font color='#6d6e70' size='8'>&nbsp;&nbsp;{passed} passed"
@@ -237,7 +248,7 @@ def build_pdf(path, data):
                           Paragraph(esc(cap), st["small"])])
         grid = [cells[i:i + n] for i in range(0, len(cells), n)]
         grid[-1] += [""] * (n - len(grid[-1]))
-        g = Table(grid, colWidths=[cw] * n)
+        g = Table(grid, colWidths=[cw] * n, hAlign="LEFT")
         g.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0)]))
         ev.append(g)
     if data.get("files"):
@@ -262,7 +273,7 @@ def build_pdf(path, data):
         Table([[Paragraph(esc(data.get("tech") or ""), st["value"]), "",
                 Paragraph(esc(fmt_time(data.get("completed")).split("  ")[0]), st["value"])],
                [Paragraph("Technician", st["label"]), "", Paragraph("Date", st["label"])]],
-              colWidths=[W * 0.5, W * 0.1, W * 0.4],
+              colWidths=[W * 0.42, W * 0.08, W * 0.5], hAlign="LEFT",
               style=TableStyle([("LINEABOVE", (0, 1), (0, 1), 0.6, INK), ("LINEABOVE", (2, 1), (2, 1), 0.6, INK),
                                 ("LEFTPADDING", (0, 0), (-1, -1), 0)]))]))
 
@@ -271,7 +282,7 @@ def build_pdf(path, data):
     if act:
         rows = [[Paragraph(esc(t.strftime("%H:%M:%S") if isinstance(t, datetime.datetime) else t), st["mono"]),
                  Paragraph(esc(x), st["mono"])] for t, x in act[-250:]]
-        lt = Table(rows, colWidths=[0.75 * inch, W - 0.75 * inch])
+        lt = Table(rows, colWidths=[0.75 * inch, W - 0.75 * inch], hAlign="LEFT")
         lt.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0),
                                 ("TOPPADDING", (0, 0), (-1, -1), 1), ("BOTTOMPADDING", (0, 0), (-1, -1), 1)]))
         story += [Paragraph(f"Activity log <font color='#6d6e70' size='8'>&nbsp;&nbsp;{len(act)} entries"
@@ -282,7 +293,7 @@ def build_pdf(path, data):
         w, h = letter
         # header
         top = h - 0.55 * inch
-        x = 0.6 * inch
+        x = M
         logo = data.get("logo")
         drew_logo = False
         if logo and os.path.exists(logo):
@@ -308,30 +319,30 @@ def build_pdf(path, data):
             c.drawString(x, top - 0.44 * inch, data.get("company_line") or "")
         c.setFont(bold, 15)
         c.setFillColor(ACCENT)
-        c.drawRightString(w - 0.6 * inch, top - 0.24 * inch, data.get("title") or "Device Test Certificate")
+        c.drawRightString(w - M, top - 0.24 * inch, data.get("title") or "Device Test Certificate")
         c.setFont(regular, 8.5)
         c.setFillColor(MUTED)
-        c.drawRightString(w - 0.6 * inch, top - 0.44 * inch, data.get("subtitle") or "")
+        c.drawRightString(w - M, top - 0.44 * inch, data.get("subtitle") or "")
         c.setStrokeColor(ACCENT)
         c.setLineWidth(2)
-        c.line(0.6 * inch, top - 0.72 * inch, w - 0.6 * inch, top - 0.72 * inch)
+        c.line(M, top - 0.72 * inch, w - M, top - 0.72 * inch)
         # footer
         c.setStrokeColor(LINE)
         c.setLineWidth(0.6)
-        c.line(0.6 * inch, 0.62 * inch, w - 0.6 * inch, 0.62 * inch)
+        c.line(M, 0.62 * inch, w - M, 0.62 * inch)
         c.setFont(regular, 7.5)
         c.setFillColor(MUTED)
-        c.drawString(0.6 * inch, 0.45 * inch, (f"{data['company']}  ·  " if data.get("company") else "") +
+        c.drawString(M, 0.45 * inch, (f"{data['company']}  ·  " if data.get("company") else "") +
                      f"Certificate {data.get('cert_id', '')}  ·  "
                                               f"Asset tag {data.get('asset_tag') or '-'}  ·  "
                                               f"Generated by {data.get('software', 'Bench Tested')}")
-        c.drawRightString(w - 0.6 * inch, 0.45 * inch, f"Page {doc.page} of {total[0] or '?'}")
+        c.drawRightString(w - M, 0.45 * inch, f"Page {doc.page} of {total[0] or '?'}")
         c.restoreState()
 
     total = [0]
 
     def make(target):
-        return SimpleDocTemplate(target, pagesize=letter, leftMargin=0.6 * inch, rightMargin=0.6 * inch,
+        return SimpleDocTemplate(target, pagesize=letter, leftMargin=M - FRAME_PAD, rightMargin=M - FRAME_PAD,
                             topMargin=1.45 * inch, bottomMargin=0.85 * inch,
                             title=f"Device Test Certificate {data.get('cert_id', '')}",
                             author=data.get("tech") or "", subject=data.get("asset_tag") or "",

@@ -15,6 +15,7 @@ Step-by-step instructions for testing every type of device Bench Tested supports
 - [Document scanners](#document-scanners)
 - [Topaz signature pads](#topaz-signature-pads)
 - [Cameras and conference hubs](#cameras-and-conference-hubs)
+- [Test certificates](#test-certificates)
 - [Where your proof is saved](#where-your-proof-is-saved)
 - [A suggested routine for resale testing](#a-suggested-routine-for-resale-testing)
 
@@ -243,6 +244,52 @@ Adjust brightness, focus, white balance and anything else the camera offers. **T
 
 ---
 
+## Test certificates
+
+Every unit you test can get a **PDF test certificate**: a record that it went through testing, whether it passed or failed. Each certificate also adds a line to a register spreadsheet.
+
+<img src="images/certificate-sample.png" alt="A sample test certificate" width="70%">
+
+**Set up once**
+
+1. Click the **gear icon** in the toolbar and fill in the company name, the technician's name, and the folder for certificates. You can also add the company logo here; when there's a logo, it replaces the company name at the top of the certificate.
+2. If you keep a barcode scanner plugged in for everyday work, open its page and tick **Use as asset tag scanner**. While Bench Tested is the active window, its scans fill in the asset tag of the device you're testing instead of counting as test scans.
+
+**For each unit**
+
+1. Click the device and **scan its asset tag**, or type it into the **Asset tag** box under the device page.
+2. Run its tests as usual. Everything is recorded as you go: each check, its result and the time, plus every line about that device in the Activity log.
+3. Click **Create certificate…**. Answer the checks only you can judge (for example *Test label printed clearly*), add notes if you like, and click **Create certificate**.
+
+**The result** is worked out automatically:
+
+| Result | When |
+|---|---|
+| **PASS** | Every required check passed |
+| **FAIL** | Any check failed |
+| **INCOMPLETE** | Nothing failed, but not every required check was done |
+
+You can override the result in the dialog. The certificate then shows that the technician set it, and what the automatic result was.
+
+**Nothing slips through.** If you unplug a device you tested without making a certificate, one is created for it automatically about 10 seconds later, marked *Created automatically when the device was unplugged*. You can turn this off with the gear icon.
+
+**What's on a certificate**
+
+- The asset tag, as text and as a scannable barcode, the result, a certificate number and the completion time
+- Make, model, serial number and USB ID
+- Everything the device reports about itself. For a Zebra that's firmware, odometer, printhead usage, resolution and label size; other devices report less. Details the device can't report are left out or marked *Not reported*, never guessed.
+- Every test with its result and details, and evidence: signatures, scanned pages, photos and where the proof files are saved
+- The technician, test station, start and finish times, and the full Activity log for that unit
+
+**Where they're saved**
+
+- PDFs: `~/Documents/Bench Tested/Certificates/<year>/<month>/`, named `<certificate number>_<asset tag>_<model>.pdf`
+- The register: `certificate-register.csv` in the same folder, one row per certificate. It opens in Google Sheets or Excel, and each row includes a SHA-256 fingerprint of its PDF, so a changed PDF can be spotted.
+
+Click **Certificates** in the toolbar to open the folder, or **Open last** under a device page to open that unit's latest certificate.
+
+---
+
 ## Where your proof is saved
 
 | Proof | Where |
@@ -251,6 +298,7 @@ Adjust brightness, focus, white balance and anything else the camera offers. **T
 | Document scans | `~/Pictures/Bench Tested/` |
 | Signatures | `~/Pictures/Bench Tested/` |
 | Camera photos | `~/Pictures/Bench Tested/` |
+| Test certificates and the register | `~/Documents/Bench Tested/Certificates/` |
 | Everything else | The **Activity** log (timestamped, in the app window) |
 
 Each file or folder name includes the device and the date and time. Signatures are saved as SVG images, which open in any web browser. Photos of the unit plus these files make a complete record for a listing.

@@ -15,6 +15,7 @@ Technical notes for the curious, and for anyone adding support for a new device.
 - [Document scanners](#document-scanners)
 - [Signature pads](#signature-pads)
 - [Cameras and conference hubs](#cameras-and-conference-hubs)
+- [Test certificates](#test-certificates)
 - [Settings and files](#settings-and-files)
 - [Adding a new device type](#adding-a-new-device-type)
 
@@ -40,7 +41,9 @@ Bench-Tested/
 │   ├── mic.py                # dictation mics
 │   ├── docscan.py            # document scanners
 │   ├── sigpad.py             # Topaz signature pads
-│   └── camera.py             # cameras and conference hubs
+│   ├── camera.py             # cameras and conference hubs
+│   ├── certs.py              # per-unit test records, asset tags, certificate dialogs
+│   └── certpdf.py            # the certificate PDF (ReportLab)
 ├── 70-bench-tested.rules     # udev rule (mic and pad access)
 ├── install.sh / uninstall.sh
 └── docs/
@@ -131,6 +134,13 @@ For an unknown serial model, each profile is tried in turn. The first one where 
 - **Speaker → mic check.** A tone is played through the device's speaker while its mic records. A Goertzel filter detects the tone's frequency in the recording.
 - **Ignored on purpose:** built-in laptop cameras and dock audio.
 
+## Test certificates
+
+- **Record per unit** (`certs.py`). Each device has a running record: results the tests report as they finish, and every Activity line about that device. A device with a serial number keeps its record through brief disconnects, such as a Zebra reconnecting after a factory reset. A device without one starts a new record when it's replugged.
+- **Data** is collected when the certificate is made, from what each device page already knows: the Zebra's `^HH` configuration reply, scanner hits, mic levels and buttons, scanned pages, pen strokes and camera results. When a unit is unplugged, a copy is taken before its page forgets it, so an automatic certificate still has everything.
+- **PDF** (`certpdf.py`) is drawn with ReportLab, so no GTK is needed. The signature is drawn as vector strokes, and the asset tag is printed as Code 128.
+- **Register.** One CSV row per certificate, including the SHA-256 hash of the PDF.
+
 ## Settings and files
 
 | What | Where |
@@ -138,6 +148,8 @@ For an unknown serial model, each profile is tried in turn. The first one where 
 | Settings (per unit and per model) | `~/.config/bench-tested.json` |
 | Reset-code library | `~/.local/share/bench-tested/reset-codes/` |
 | Proof files | `~/Pictures/Bench Tested/` |
+| Certificates and register | `~/Documents/Bench Tested/Certificates/` |
+| Company logo for certificates | `~/.local/share/bench-tested/company-logo.png` |
 | App | `~/.local/share/bench-tested/lib/` |
 
 ## Adding a new device type

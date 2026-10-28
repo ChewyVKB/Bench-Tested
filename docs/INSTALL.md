@@ -70,6 +70,7 @@ The installer also adds any of these packages that are missing. It installs them
 | `alsa-utils`, `pipewire-bin` | Finding and using each device's own mic and speaker |
 | `gir1.2-gstreamer-1.0`, `gstreamer1.0-plugins-good`, `gstreamer1.0-plugins-base`, `gstreamer1.0-pipewire` | Recording, the live level meter and the camera preview |
 | `python3-gi-cairo` | Drawing signatures |
+| `python3-reportlab`, `python3-pil` | Test certificates (PDF) |
 | `v4l-utils` | Camera modes and controls |
 | `cups-client` | Dymo printers |
 
