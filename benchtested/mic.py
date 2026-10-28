@@ -9,7 +9,9 @@ from .inputdev import (BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, EV_KEY, EV_REL, HidrawWa
 
 RAW_BASE = 100000      # buttons found in raw HID reports are numbered from here
 
-TRACKBALL_VENDORS = {"df04"}       # PowerMic's built-in trackball shows up as its own USB device
+# PowerMic II/III: the trackball shows up as its own USB device behind the mic's hub.
+# df04 on most units; some PowerMicII-NS have an Interlink "FSR 4ZUSB" (214a:0002) instead.
+TRACKBALL_VENDORS = {"df04", "214a"}
 
 BTN_NAMES = {BTN_LEFT: "Left click", BTN_RIGHT: "Right click", BTN_MIDDLE: "Middle click"}
 

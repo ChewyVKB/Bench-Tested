@@ -203,7 +203,7 @@ If the scanner isn't found, check that it's switched on, then click **Look for s
 
 ## Topaz signature pads
 
-Works with Topaz serial pads, both **BSB** models (for example the T-LBK462-BSB-R) and **eSign** models on a USB-B printer-style cable, and with Topaz **USB HID** pads (listed as *Topaz HID Tablet*).
+Works with Topaz serial pads, both **BSB** models (including ones whose USB chip still has the generic FTDI name; these show up as *Serial signature pad* until you write on them) (for example the T-LBK462-BSB-R) and **eSign** models on a USB-B printer-style cable, and with Topaz **USB HID** pads (listed as *Topaz HID Tablet*).
 
 **Steps**
 
@@ -258,8 +258,9 @@ Every unit you test can get a **PDF test certificate**: a record that it went th
 **For each unit**
 
 1. Click the device and **scan its asset tag**. While the **Asset tag** box under the device page has the cursor, a scan from any scanner goes into it. For devices that aren't scanners, the cursor is already there while the box is empty; on a scanner's page, click into the box first. You can also type the tag.
+   If the device doesn't report its serial number over USB (many dictation mics don't), a **Serial no.** box appears next to it. After the asset tag is scanned, the cursor moves there: scan the serial number from the device's label, or type it. The certificate marks it as taken from the label.
 2. Run its tests as usual. Everything is recorded as you go: each check, its result and the time, plus every line about that device in the Activity log.
-3. Click **Create certificate…**. Answer the checks only you can judge (for example *Test label printed clearly*), add notes if you like, and click **Create certificate**.
+3. Click **Create certificate…**. You can correct the model name here when a device reports a generic one; for example, a signature pad's USB chip doesn't know the pad's model number. Answer the checks only you can judge (for example *Test label printed clearly*), add notes if you like, and click **Create certificate**.
 
 **The result** is worked out automatically:
 

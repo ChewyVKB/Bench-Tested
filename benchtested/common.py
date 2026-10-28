@@ -54,7 +54,8 @@ DOCSCAN_VENDORS = {
 # conference audio (speakerphones, expansion mics) - listed with cameras even without video
 CONF_AUDIO_VENDORS = {"046d": "Logitech", "095d": "Polycom", "047f": "Poly / Plantronics",
                       "0b0e": "Jabra", "1395": "EPOS / Sennheiser"}
-SKIP_VENDORS = {"df04"}   # PowerMic trackball - shown as part of the mic
+SKIP_VENDORS = {"df04", "214a"}   # PowerMic trackballs - shown as part of the mic
+GENERIC_FTDI = r"FT232R USB UART|FT230X Basic UART|FT231X USB UART|USB <-> Serial|USB Serial Converter"
 
 SCANNER_VENDORS = {
     "05e0": "Symbol / Zebra",
@@ -226,6 +227,11 @@ def classify(vid, product, ifaces, serial="", removable="", parent_vid=""):
         # Topaz: own USB id (HID models), or an FTDI serial chip whose serial number is
         # "TOPAZ..." (BSB pads) or "eSign" (pads on a USB-B "printer" cable)
         return "sigpad"
+    if vid == "0403" and re.fullmatch(GENERIC_FTDI, product or ""):
+        # an FTDI USB-serial chip that still has FTDI's factory name and serial number. Some
+        # Topaz BSB pads ship like that (e.g. serial "AH012S4C"); the pad page confirms it
+        # from the pen data, which is in Topaz's own format.
+        return "sigpad"
     if vid in SKIP_VENDORS:
         return None
     if vid in DOCSCAN_VENDORS and (re.search(DOCSCAN_VENDORS[vid][1], product, re.I) or
@@ -352,7 +358,9 @@ def scan_usb():
             brand = DOCSCAN_VENDORS[vid][0]
         elif cat == "sigpad":
             brand = "Topaz"
-            if not re.search(r"topaz", product, re.I):
+            if vid == "0403" and re.fullmatch(GENERIC_FTDI, product or ""):
+                product = "Serial signature pad (generic USB-serial chip)"
+            elif not re.search(r"topaz", product, re.I):
                 product = "Topaz signature pad" + (" (serial)" if vid == "0403" else "")
         elif cat == "camera":
             brand = read_file(d + "/manufacturer") or db_names(os.path.realpath(d))[0] or "Camera"

@@ -539,6 +539,9 @@ class SigPadMixin:
             }.get(s["state"], "Connecting…")
         if not HAVE_CAIRO:
             text += "  (Install python3-gi-cairo to see the drawing.)"
+        if d["product"].startswith("Serial signature pad") and not s["points"]:
+            text += ("  This is a generic USB-serial chip (some Topaz BSB pads use one). Write on the pad "
+                     "to confirm it - if it isn't a signature pad, just ignore it.")
         self.p_status.set_text(text)
         cov = self.pad_coverage(s)
         if s["points"]:

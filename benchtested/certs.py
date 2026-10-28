@@ -72,7 +72,7 @@ class CertMixin:
     def cert_rec(self, key, create=True):
         r = self.cert_recs.get(key)
         if r is None and create:
-            r = {"key": key, "started": None, "events": [], "marks": {}, "asset": "", "plug": None,
+            r = {"key": key, "started": None, "events": [], "marks": {}, "asset": "", "serial_in": "", "model_in": "", "plug": None,
                  "gone_since": None, "manual": {}, "notes": "", "result": "auto",
                  "files": [], "images": [], "last_cert": None}
             self.cert_recs[key] = r
@@ -176,14 +176,20 @@ class CertMixin:
 
     # ---------------------------------------------------------- asset tags
     def cert_wants_scan(self):
-        """True while the Asset tag box has the cursor: then any scanner fills it in."""
+        """True while the Asset tag or Serial number box has the cursor: then a scan from
+        any scanner goes into that box instead of counting as a test scan."""
         try:
-            return bool(self.cb_tag.has_focus() and self.cb_tag.get_visible() and self.current())
+            return bool(self.current() and ((self.cb_tag.has_focus() and self.cb_tag.get_visible()) or
+                                            (self.cb_serial.has_focus() and self.cb_serial.get_visible())))
         except Exception:
             return False
 
+    def cert_needs_serial(self, d):
+        return not d["serial"] and d["key"] != self.ccfg.get("asset_scanner")
+
     def cert_asset_scanned(self, text):
-        """A scan from the asset-tag scanner: fill in the tag of the device being tested."""
+        """A scan meant for the certificate: the asset tag, or - when that box has the
+        cursor - the serial number from the device's sticker."""
         text = text.strip()
         d = self.current()
         if not d or d["key"] == self.ccfg.get("asset_scanner"):
@@ -191,13 +197,22 @@ class CertMixin:
             return
         r = self.cert_rec(d["key"])
         self._touch(r)
+        if self.cb_serial.has_focus() and self.cb_serial.get_visible():
+            r["serial_in"] = text
+            self.log(f"[{short_name(d)}] Serial number {text} scanned from the label")
+            self.cert_bar_refresh()
+            self.cert_release_focus(d)
+            return
         r["asset"] = text
         self.log(f"[{short_name(d)}] Asset tag {text} scanned")
         self.cert_bar_refresh()
-        self.cert_release_focus(d)              # the next scans are test scans again
+        if self.cert_needs_serial(d) and not r["serial_in"]:
+            self.cb_serial.grab_focus()             # next: the serial number from the sticker
+        else:
+            self.cert_release_focus(d)              # the next scans are test scans again
 
     def cert_release_focus(self, d):
-        if not self.cb_tag.has_focus():
+        if not (self.cb_tag.has_focus() or self.cb_serial.has_focus()):
             return
         if d["category"] == "scanner":
             self.b_entry.grab_focus()           # the scanner page's own scan box
@@ -230,10 +245,14 @@ class CertMixin:
     def cert_collect(self, d, r):
         """(device fields, details, automatic checks, required check names, signature, images)."""
         cat = d["category"]
-        device = [("Device type", TYPE_NAMES.get(cat, cat)), ("Make", d["brand"]),
-                  ("Model", d["product"]), ("Serial number", d["serial"]),
+        model = ("Model (entered by technician)", r["model_in"]) if r.get("model_in") else ("Model", d["product"])
+        serial = ("Serial number (from the label)", r["serial_in"]) if (r.get("serial_in") and not d["serial"]) \
+            else ("Serial number", d["serial"])
+        device = [("Device type", TYPE_NAMES.get(cat, cat)), ("Make", d["brand"]), model, serial,
                   ("USB ID", f"{d['vid']}:{d['pid']}")]
         details, checks, required, sig, images = list(usb_extra(d)), [], [], None, []
+        if r.get("model_in"):
+            details.insert(0, ("Model name reported over USB", d["product"]))
 
         def add(name, ok, detail="", need=True):
             st = "pass" if ok else ("fail" if ok is False else "skip")
@@ -505,6 +524,16 @@ class CertMixin:
         self.cb_tag.connect("activate", lambda *_: self.current() and self.cert_release_focus(self.current()))
         self.cb_tag.connect("changed", self.on_cert_tag_typed)
         bar.pack_start(self.cb_tag, False, False, 0)
+        self.cb_serial_lbl = lbl("<b>Serial no.</b>", markup=True)
+        bar.pack_start(self.cb_serial_lbl, False, False, 0)
+        self.cb_serial = Gtk.Entry()
+        self.cb_serial.set_placeholder_text("Not reported - scan the label")
+        self.cb_serial.set_tooltip_text("This device doesn't report its serial number over USB. Scan or type it "
+                                        "from the label; the certificate marks it as taken from the label.")
+        self.cb_serial.set_width_chars(20)
+        self.cb_serial.connect("activate", lambda *_: self.current() and self.cert_release_focus(self.current()))
+        self.cb_serial.connect("changed", self.on_cert_serial_typed)
+        bar.pack_start(self.cb_serial, False, False, 0)
         self.cb_status = dim(lbl("", wrap=True))
         bar.pack_start(self.cb_status, True, True, 0)
         self.cb_asset = Gtk.CheckButton(label="Use as asset tag scanner")
@@ -531,6 +560,13 @@ class CertMixin:
             r = self.cert_rec(d["key"])
             r["asset"] = entry.get_text().strip()
 
+    def on_cert_serial_typed(self, entry):
+        if self._loading:
+            return
+        d = self.current()
+        if d:
+            self.cert_rec(d["key"])["serial_in"] = entry.get_text().strip()
+
     def on_cert_asset_toggle(self, w):
         if self._loading:
             return
@@ -556,9 +592,13 @@ class CertMixin:
         r = self.cert_rec(d["key"])
         if self.cb_tag.get_text().strip() != r["asset"]:
             self.cb_tag.set_text(r["asset"])
+        if self.cb_serial.get_text().strip() != r["serial_in"]:
+            self.cb_serial.set_text(r["serial_in"])
         self._loading = False
         for w in (self.cb_tag_lbl, self.cb_tag, self.cb_make):
             w.set_visible(not is_asset)
+        for w in (self.cb_serial_lbl, self.cb_serial):
+            w.set_visible(self.cert_needs_serial(d))
         last = r["last_cert"] or self.cfg.get("cert_last", {}).get(d["key"])
         self.cb_open.set_visible(bool(last) and not is_asset)
         if is_asset:
@@ -594,8 +634,19 @@ class CertMixin:
         tag.set_placeholder_text("Scan or type the asset tag")
         grid.attach(lbl("Asset tag:"), 0, 0, 1, 1)
         grid.attach(tag, 1, 0, 1, 1)
+        model = Gtk.Entry(text=r["model_in"] or d["product"])
+        model.set_tooltip_text("Change it if the device reports a generic name (e.g. a pad's USB chip)")
+        grid.attach(lbl("Model:"), 0, 1, 1, 1)
+        grid.attach(model, 1, 1, 1, 1)
+        row = 2
+        serial = None
+        if not d["serial"]:
+            serial = Gtk.Entry(text=r["serial_in"])
+            serial.set_placeholder_text("Not reported by the device - scan or type it from the label")
+            grid.attach(lbl("Serial number:"), 0, row, 1, 1)
+            grid.attach(serial, 1, row, 1, 1)
+            row += 1
         _dev, _det, checks, required, _s, _i = self.cert_collect(d, r)
-        row = 1
         auto_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         icon = {"pass": "✓", "fail": "✗", "info": "•", "skip": "○"}
         for name, st, detail in checks:
@@ -648,6 +699,10 @@ class CertMixin:
         resp = dlg.run()
         if resp == Gtk.ResponseType.OK:
             r["asset"] = tag.get_text().strip()
+            m = model.get_text().strip()
+            r["model_in"] = m if m and m != d["product"] else ""
+            if serial is not None:
+                r["serial_in"] = serial.get_text().strip()
             r["notes"] = notes.get_text().strip()
             r["result"] = result.get_active_id() or "auto"
             dlg.destroy()

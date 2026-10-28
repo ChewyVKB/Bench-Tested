@@ -11,12 +11,16 @@ All notable changes to Bench Tested are listed here.
   - every test with its result, plus evidence and the unit's timestamped activity log
   - technician sign-off, company name and logo
   - a line in a CSV register for each certificate; units that were tested and unplugged without one get a certificate automatically
+  - devices that don't report a serial number get a Serial no. box: scan it from the label after the asset tag, or type it
+  - the model name can be corrected on the certificate when a device reports a generic one
 - Conference speakerphones and expansion mics without a camera (Logitech, Poly/Polycom, Jabra, EPOS) are now detected. They get an audio-only page.
 - Conference cams built as a hub with separate audio and video parts (e.g. Logitech ConferenceCam Connect) are detected.
 - Topaz USB HID signature pads (`06a8:0043`, *Topaz HID Tablet*): live ink, hover dot, edge check and saved signatures, the same as serial pads.
 - Signature pads: the drawing clears itself 4 seconds after you stop writing, like the pad's own screen. The checks stay, and Save signature still saves the last signature.
 
 ### Fixed
+- Topaz BSB pads whose USB-serial chip still has the generic FTDI name and serial number (e.g. *FT232R USB UART*, serial *AH012S4C*) now show up as signature pads.
+- PowerMicII-NS units with an Interlink *FSR 4ZUSB* trackball (`214a:0002`) get the trackball check, like units with the usual trackball.
 - Nuance PowerMic 4: its buttons are now detected, and its built-in trackball's clicks count as trackball checks instead of mic buttons. Only this model is affected.
 - Barcode scanners are only held while Bench Tested is the active window. In any other window (a browser, an ERP system) scanners type as normal, so the app can stay open all day.
 - Zebras whose USB connection doesn't come back after a factory reset or calibration are reconnected in software, instead of needing a replug. Needs `./install.sh` to be run again once.
