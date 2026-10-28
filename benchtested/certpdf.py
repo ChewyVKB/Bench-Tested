@@ -22,15 +22,18 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import (Flowable, Image, KeepTogether, Paragraph, SimpleDocTemplate, Spacer,
                                 Table, TableStyle)
 
-INK = colors.HexColor("#1b2533")
-MUTED = colors.HexColor("#5b6574")
-LINE = colors.HexColor("#dde2e9")
-BAND = colors.HexColor("#f4f6f9")
-ACCENT = colors.HexColor("#1f4e8c")
-RESULT_COLORS = {"PASS": colors.HexColor("#1e8e4e"), "FAIL": colors.HexColor("#c0392b"),
-                 "INCOMPLETE": colors.HexColor("#b7791f")}
-STATUS = {"pass": ("PASS", colors.HexColor("#1e8e4e")), "fail": ("FAIL", colors.HexColor("#c0392b")),
-          "info": ("INFO", colors.HexColor("#1f4e8c")), "skip": ("NOT TESTED", colors.HexColor("#8a94a3"))}
+# Colours follow the company logo (S3 Recycling Solutions green and grey). Red and amber are
+# kept only where they carry meaning: a failed or incomplete result.
+GREEN = colors.HexColor("#46a944")
+GREY = colors.HexColor("#6d6e70")
+INK = colors.HexColor("#2b2d2f")
+MUTED = colors.HexColor("#6d6e70")
+LINE = colors.HexColor("#dfe3df")
+BAND = colors.HexColor("#f3f8f2")
+ACCENT = GREEN
+RESULT_COLORS = {"PASS": GREEN, "FAIL": colors.HexColor("#c0392b"), "INCOMPLETE": colors.HexColor("#c98a1b")}
+STATUS = {"pass": ("PASS", GREEN), "fail": ("FAIL", colors.HexColor("#c0392b")),
+          "info": ("INFO", GREY), "skip": ("NOT TESTED", colors.HexColor("#a3a6a8"))}
 
 _FONTS = None
 
@@ -195,7 +198,7 @@ def build_pdf(path, data):
     # ---- device
     story += [Paragraph("Device", st["h2"]), kv_table(data.get("device", []))]
     if data.get("details"):
-        story += [Paragraph("Device details reported", st["h2"]), kv_table(data["details"])]
+        story += [Paragraph("Device details", st["h2"]), kv_table(data["details"])]
 
     # ---- test results
     checks = data.get("checks", [])
@@ -214,7 +217,7 @@ def build_pdf(path, data):
         ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#fafbfc")])]))
     passed = sum(1 for c in checks if c[1] == "pass")
     failed = sum(1 for c in checks if c[1] == "fail")
-    story += [Paragraph(f"Test results <font color='#5b6574' size='8'>&nbsp;&nbsp;{passed} passed"
+    story += [Paragraph(f"Test results <font color='#6d6e70' size='8'>&nbsp;&nbsp;{passed} passed"
                         f" · {failed} failed · {len(checks)} total</font>", st["h2"]), t]
 
     # ---- evidence
@@ -271,7 +274,7 @@ def build_pdf(path, data):
         lt = Table(rows, colWidths=[0.75 * inch, W - 0.75 * inch])
         lt.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0),
                                 ("TOPPADDING", (0, 0), (-1, -1), 1), ("BOTTOMPADDING", (0, 0), (-1, -1), 1)]))
-        story += [Paragraph(f"Activity log <font color='#5b6574' size='8'>&nbsp;&nbsp;{len(act)} entries"
+        story += [Paragraph(f"Activity log <font color='#6d6e70' size='8'>&nbsp;&nbsp;{len(act)} entries"
                             + (", last 250 shown" if len(act) > 250 else "") + "</font>", st["h2"]), lt]
 
     def page(c, doc):
@@ -281,22 +284,28 @@ def build_pdf(path, data):
         top = h - 0.55 * inch
         x = 0.6 * inch
         logo = data.get("logo")
+        drew_logo = False
         if logo and os.path.exists(logo):
             try:
                 from reportlab.lib.utils import ImageReader
                 ir = ImageReader(logo)
                 iw, ih = ir.getSize()
-                s = min(1.9 * inch / iw, 0.62 * inch / ih)
-                c.drawImage(ir, x, top - ih * s, iw * s, ih * s, mask="auto")
-                x += iw * s + 0.18 * inch
+                s = min(2.3 * inch / iw, 0.64 * inch / ih)
+                c.drawImage(ir, x, top - ih * s + 0.04 * inch, iw * s, ih * s, mask="auto")
+                drew_logo = True
+                if data.get("company_line"):
+                    c.setFont(regular, 8)
+                    c.setFillColor(MUTED)
+                    c.drawString(x, top - 0.64 * inch, data["company_line"])
             except Exception:
                 pass
-        c.setFillColor(INK)
-        c.setFont(bold, 14)
-        c.drawString(x, top - 0.24 * inch, data.get("company") or "")
-        c.setFont(regular, 9)
-        c.setFillColor(MUTED)
-        c.drawString(x, top - 0.44 * inch, data.get("company_line") or "")
+        if not drew_logo:
+            c.setFillColor(INK)
+            c.setFont(bold, 14)
+            c.drawString(x, top - 0.24 * inch, data.get("company") or "")
+            c.setFont(regular, 9)
+            c.setFillColor(MUTED)
+            c.drawString(x, top - 0.44 * inch, data.get("company_line") or "")
         c.setFont(bold, 15)
         c.setFillColor(ACCENT)
         c.drawRightString(w - 0.6 * inch, top - 0.24 * inch, data.get("title") or "Device Test Certificate")
@@ -312,7 +321,8 @@ def build_pdf(path, data):
         c.line(0.6 * inch, 0.62 * inch, w - 0.6 * inch, 0.62 * inch)
         c.setFont(regular, 7.5)
         c.setFillColor(MUTED)
-        c.drawString(0.6 * inch, 0.45 * inch, f"Certificate {data.get('cert_id', '')}  ·  "
+        c.drawString(0.6 * inch, 0.45 * inch, (f"{data['company']}  ·  " if data.get("company") else "") +
+                     f"Certificate {data.get('cert_id', '')}  ·  "
                                               f"Asset tag {data.get('asset_tag') or '-'}  ·  "
                                               f"Generated by {data.get('software', 'Bench Tested')}")
         c.drawRightString(w - 0.6 * inch, 0.45 * inch, f"Page {doc.page} of {total[0] or '?'}")

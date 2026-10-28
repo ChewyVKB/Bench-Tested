@@ -43,7 +43,8 @@ def usb_extra(d):
     if d.get("manufacturer"):
         out.append(("Manufacturer (reported)", d["manufacturer"]))
     if rev:
-        out.append(("Device revision (USB)", f"{int(rev[:2], 16)}.{rev[2:]}" if len(rev) == 4 else rev))
+        # bcdDevice: the release number the device reports over USB (often, not always, its firmware)
+        out.append(("USB device release", f"{int(rev[:2], 16)}.{rev[2:]}" if len(rev) == 4 else rev))
     if speed:
         out.append(("USB speed", {"1.5": "Low speed", "12": "Full speed (USB 1.1)", "480": "High speed (USB 2.0)",
                                   "5000": "SuperSpeed (USB 3)"}.get(speed, f"{speed} Mb/s")))
@@ -236,21 +237,23 @@ class CertMixin:
                 if g("SERIAL NUMBER"):
                     device[3] = ("Serial number", g("SERIAL NUMBER"))
                 if W and H and D:
-                    details.append(("Label size (measured)", f"{W / D:.2f} x {H / D:.2f} in"))
+                    details.append(("Label size (detected)", f"{W / D:.2f} x {H / D:.2f} in"))
                     details.append(("Resolution", f"{D} dpi"))
-                for k, label in (("FIRMWARE", "Firmware"), ("TOTAL USAGE", "Odometer (total printed)"),
-                                 ("HEAD USAGE", "Printhead usage"), ("LAST CLEANED", "Last cleaned"),
+                # all straight from the printer's ^HH configuration reply; only what it reports
+                for k, label in (("FIRMWARE", "Firmware"), ("TOTAL USAGE", "Total usage (odometer)"),
+                                 ("HEAD USAGE", "Head usage (since printhead replaced)"),
+                                 ("LAST CLEANED", "Printhead last cleaned at"),
                                  ("MEDIA TYPE", "Media type"), ("SENSOR TYPE", "Sensor type"),
                                  ("PRINT MODE", "Print mode"), ("DARKNESS", "Darkness"),
                                  ("PRINT SPEED", "Print speed"), ("ZPL MODE", "ZPL mode")):
                     if g(k):
                         details.append((label, g(k)))
-            details.append(("Printer language", o.get("lang", "ZPL")))
+            details.append(("Printer language (set in Bench Tested)", o.get("lang", "ZPL")))
         else:
             from .printers import parse_dim_id, dymo_item_name
             dim = parse_dim_id(o.get("dsize"))
             if dim:
-                details.append(("Labels loaded", dymo_item_name(*dim) or f"{dim[0] / 72:.2f} x {dim[1] / 72:.2f} in"))
+                details.append(("Labels loaded (picked by technician)", dymo_item_name(*dim) or f"{dim[0] / 72:.2f} x {dim[1] / 72:.2f} in"))
         sent = marks.pop("Test label sent", None)
         add("Test label sent", (sent[0] == "pass") if sent else None, sent[1] if sent else "Not printed")
         return None, []
@@ -341,8 +344,8 @@ class CertMixin:
         res = s["results"]
         modes = s.get("modes") or []
         if modes:
-            details.append(("Best mode", modes[0][0] if modes else ""))
-            details.append(("Video modes", str(len(modes))))
+            details.append(("Highest resolution (reported)", modes[0][0].split("  ")[0]))
+            details.append(("Resolutions supported", str(len(modes))))
         if s.get("node"):
             details.append(("Video device", s["node"]))
         a = s.get("audio")
@@ -402,7 +405,7 @@ class CertMixin:
             checks.append((name, "pass" if v is True else "fail" if v is False else "skip",
                            "Confirmed by technician" if v is not None else ""))
         if r["grade"] != GRADES[0]:
-            details.append(("Cosmetic grade", r["grade"]))
+            details.append(("Cosmetic grade (technician)", r["grade"]))
         now = datetime.datetime.now()
         cert_id = self.cert_next_id()
         note = ""
