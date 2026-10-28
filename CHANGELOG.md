@@ -21,7 +21,8 @@ All notable changes to Bench Tested are listed here.
 ### Fixed
 - Signature pads: the right edge check now passes. It was measured against an estimated writing area that was wider than the pad (x up to 2650; the T-LBK462 stops at about 2270), and saving a signature stored that estimate.
 - Topaz BSB pads whose USB-serial chip still has the generic FTDI name and serial number (e.g. *FT232R USB UART*, serial *AH012S4C*) now show up as signature pads.
-- PowerMicII-NS units with an Interlink *FSR 4ZUSB* trackball (`214a:0002`) get the trackball check, like units with the usual trackball.
+- PowerMicII-NS units with an Interlink *FSR 4ZUSB* trackball (`214a:0002`) get the trackball check, including its left and right clicks, like units with the usual trackball.
+- Dictation mics: trackball clicks are now written to the Activity log (and the certificate) the first time each one works.
 - Nuance PowerMic 4: its buttons are now detected, and its built-in trackball's clicks count as trackball checks instead of mic buttons. Only this model is affected.
 - Barcode scanners are only held while Bench Tested is the active window. In any other window (a browser, an ERP system) scanners type as normal, so the app can stay open all day.
 - Zebras whose USB connection doesn't come back after a factory reset or calibration are reconnected in software, instead of needing a replug. Needs `./install.sh` to be run again once.

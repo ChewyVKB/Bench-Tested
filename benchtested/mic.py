@@ -164,6 +164,8 @@ class MicMixin:
         changed = False
         if t == EV_KEY and value == 1:
             if code in BTN_NAMES and d.get("trackball"):
+                if code not in s["ball"]:
+                    self.log(f"[{short_name(d)}] trackball {BTN_NAMES[code].lower()} works")
                 s["ball"].add(code)
             else:
                 if code < RAW_BASE and s["src"] != "evdev":
