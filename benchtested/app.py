@@ -479,6 +479,7 @@ class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, SigPadMixin, Camer
             self.camera_select(d)
         self.update_sensitivity()
         self.cert_bar_refresh()
+        GLib.idle_add(self.cert_focus_tag)       # after the page has taken focus itself
 
     def update_header(self):
         d = self.current()

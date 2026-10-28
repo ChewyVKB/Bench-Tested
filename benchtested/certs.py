@@ -175,6 +175,13 @@ class CertMixin:
         self.cert_create(d, r, quiet=True)
 
     # ---------------------------------------------------------- asset tags
+    def cert_wants_scan(self):
+        """True while the Asset tag box has the cursor: then any scanner fills it in."""
+        try:
+            return bool(self.cb_tag.has_focus() and self.cb_tag.get_visible() and self.current())
+        except Exception:
+            return False
+
     def cert_asset_scanned(self, text):
         """A scan from the asset-tag scanner: fill in the tag of the device being tested."""
         text = text.strip()
@@ -187,6 +194,25 @@ class CertMixin:
         r["asset"] = text
         self.log(f"[{short_name(d)}] Asset tag {text} scanned")
         self.cert_bar_refresh()
+        self.cert_release_focus(d)              # the next scans are test scans again
+
+    def cert_release_focus(self, d):
+        if not self.cb_tag.has_focus():
+            return
+        if d["category"] == "scanner":
+            self.b_entry.grab_focus()           # the scanner page's own scan box
+        else:
+            self.set_focus(None)
+
+    def cert_focus_tag(self):
+        """Put the cursor in the Asset tag box when it's still empty, so scanning the tag
+        is the first thing that happens - not on scanner pages, where scans are tests."""
+        d = self.current()
+        if not d or d["category"] == "scanner" or d["key"] == self.ccfg.get("asset_scanner"):
+            return False
+        if not self.cert_rec(d["key"])["asset"]:
+            self.cb_tag.grab_focus()
+        return False
 
     def cert_set_asset_scanner(self, d, on):
         if on:
@@ -473,8 +499,10 @@ class CertMixin:
         self.cb_tag_lbl = lbl("<b>Asset tag</b>", markup=True)
         bar.pack_start(self.cb_tag_lbl, False, False, 0)
         self.cb_tag = Gtk.Entry()
-        self.cb_tag.set_placeholder_text("Scan or type the asset tag")
-        self.cb_tag.set_width_chars(18)
+        self.cb_tag.set_placeholder_text("Click here, then scan or type")
+        self.cb_tag.set_tooltip_text("While the cursor is in this box, a scan from any scanner fills it in")
+        self.cb_tag.set_width_chars(22)
+        self.cb_tag.connect("activate", lambda *_: self.current() and self.cert_release_focus(self.current()))
         self.cb_tag.connect("changed", self.on_cert_tag_typed)
         bar.pack_start(self.cb_tag, False, False, 0)
         self.cb_status = dim(lbl("", wrap=True))

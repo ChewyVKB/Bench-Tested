@@ -253,11 +253,11 @@ Every unit you test can get a **PDF test certificate**: a record that it went th
 **Set up once**
 
 1. Click the **gear icon** in the toolbar and fill in the company name, the technician's name, and the folder for certificates. You can also add the company logo here; when there's a logo, it replaces the company name at the top of the certificate.
-2. If you keep a barcode scanner plugged in for everyday work, open its page and tick **Use as asset tag scanner**. While Bench Tested is the active window, its scans fill in the asset tag of the device you're testing instead of counting as test scans.
+2. Optional: if you keep a barcode scanner plugged in for everyday work, open its page and tick **Use as asset tag scanner**. Its scans then always fill in the asset tag of the device you're testing, wherever the cursor is.
 
 **For each unit**
 
-1. Click the device and **scan its asset tag**, or type it into the **Asset tag** box under the device page.
+1. Click the device and **scan its asset tag**. While the **Asset tag** box under the device page has the cursor, a scan from any scanner goes into it. For devices that aren't scanners, the cursor is already there while the box is empty; on a scanner's page, click into the box first. You can also type the tag.
 2. Run its tests as usual. Everything is recorded as you go: each check, its result and the time, plus every line about that device in the Activity log.
 3. Click **Create certificate…**. Answer the checks only you can judge (for example *Test label printed clearly*), add notes if you like, and click **Create certificate**.
 

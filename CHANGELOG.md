@@ -6,7 +6,7 @@ All notable changes to Bench Tested are listed here.
 
 ### Added
 - **Test certificates.** A PDF for every unit, pass or fail:
-  - asset tag (scanned with a designated asset tag scanner, or typed) and certificate number
+  - asset tag (scanned into the Asset tag box with any scanner, or typed) and certificate number
   - make, model, serial number and everything the device reports about itself
   - every test with its result, plus evidence and the unit's timestamped activity log
   - technician sign-off, company name and logo
