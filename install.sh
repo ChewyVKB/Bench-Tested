@@ -25,6 +25,7 @@ pkgs+=(gstreamer1.0-plugins-good gstreamer1.0-pipewire)  # recording + live leve
 pkgs+=(python3-gi-cairo)                                   # drawing signatures
 command -v v4l2-ctl >/dev/null || pkgs+=(v4l-utils)        # camera modes and controls
 pkgs+=(gstreamer1.0-plugins-base)                          # camera preview (usually already there)
+pkgs+=(python3-reportlab python3-pil)                     # test certificates (PDF)
 missing=()
 for p in "${pkgs[@]}"; do dpkg -s "$p" >/dev/null 2>&1 || missing+=("$p"); done
 if ((${#missing[@]})); then

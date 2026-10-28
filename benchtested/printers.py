@@ -746,6 +746,7 @@ class PrinterMixin:
             W, H = int(w * D), int(h * D)
             zebra_write(dev, epl_label(W, H, D))
             self.log(f"Sent EPL test label ({size_text(W, H, D)}, {D} dpi).")
+            self.cert_mark(d, "Test label sent", "pass", f"EPL label, {size_text(W, H, D)}, {D} dpi")
             return True
 
         secs = 12
@@ -765,9 +766,15 @@ class PrinterMixin:
             W, H, D, info = det
             self.log(f"Detected {size_text(W, H, D)} at {D} dpi.")
             self.z_info_show(d, W, H, D, info)
+            self.cert_mark(d, "Label size detected", "pass", f"{size_text(W, H, D)} at {D} dpi")
+            if prep == "reset":
+                self.cert_mark(d, "Factory reset", "pass", "Factory defaults restored and saved (^JUF, ^JUS)")
+            elif prep == "cal":
+                self.cert_mark(d, "Media calibration", "pass", "Labels re-measured (~JC)")
         if size_id != "auto" or not det:
             if size_id == "auto":
                 self.log("Couldn't read the label size from the printer.")
+                self.cert_mark(d, "Label size detected", "fail", "The printer didn't report its label size")
                 picked = self.ask_zebra_size(d)
                 if not picked:
                     self.log("Cancelled.")
@@ -789,6 +796,7 @@ class PrinterMixin:
         usage = info.get("TOTAL USAGE", "")
         zebra_write(dev, zpl_label(W, H, D, serial, usage))
         self.log("Sent full-size test label.")
+        self.cert_mark(d, "Test label sent", "pass", f"Full-size label {size_text(W, H, D)} with printhead check band")
         return True
 
     def _factory_reset(self, d, dev):
@@ -816,6 +824,10 @@ class PrinterMixin:
         det = zebra_detect(dev)
         if det:
             self.z_info_show(d, det[0], det[1], det[2], info)
+        else:
+            prev = self.opts(d).get("zinfo") or (None, None, None, None)
+            self.z_info_show(d, prev[0], prev[1], prev[2], info)
+        self.cert_mark(d, "Printer info read", "pass", "Serial, firmware and usage read from the printer")
         keys = ["SERIAL NUMBER", "FIRMWARE", "RESOLUTION", "TOTAL USAGE", "HEAD USAGE",
                 "LAST CLEANED", "DARKNESS", "PRINT SPEED", "PRINT WIDTH", "LABEL LENGTH",
                 "MEDIA TYPE", "SENSOR TYPE", "PRINT MODE", "ZPL MODE"]
@@ -829,6 +841,7 @@ class PrinterMixin:
             return False
         zebra_write(dev, "U\n" if self.opts(d)["lang"] == "EPL" else "~WC")
         self.log("Sent: print configuration label.")
+        self.cert_mark(d, "Configuration label printed", "info", "Printer's own configuration label")
         return True
 
     def zebra_reset(self, d):
@@ -842,8 +855,10 @@ class PrinterMixin:
         if det:
             self.z_info_show(d, *det)
             self.log(f"Factory reset done. Labels measured as {size_text(*det[:3])} at {det[2]} dpi.")
+            self.cert_mark(d, "Factory reset", "pass", "Factory defaults restored and saved (^JUF, ^JUS)")
             return True
         self.log("Factory reset sent, but the printer didn't report back yet.")
+        self.cert_mark(d, "Factory reset", "info", "Sent; the printer didn't report back")
         return False
 
     def zebra_calibrate(self, d):
@@ -857,6 +872,7 @@ class PrinterMixin:
         if det:
             self.z_info_show(d, *det)
             self.log(f"Calibration done. Labels measured as {size_text(*det[:3])}.")
+            self.cert_mark(d, "Media calibration", "pass", f"Labels measured as {size_text(*det[:3])}")
             return True
         self.log("Calibration sent, but the printer didn't report back yet.")
         return False
@@ -1143,11 +1159,13 @@ class PrinterMixin:
         os.unlink(path)
         if r.returncode != 0:
             self.log("Printing failed: " + (r.stderr.strip() or r.stdout.strip()))
+            self.cert_mark(d, "Test label sent", "fail", r.stderr.strip() or r.stdout.strip())
             return False
         m = re.search(r"request id is (\S+)", r.stdout)
         job = m.group(1) if m else None
         desc = f"{min(w, h) / 72:.2f} x {max(w, h) / 72:.2f} in"
         self.log(f"Sent test label ({text + ', ' if text else ''}{desc}).")
+        self.cert_mark(d, "Test label sent", "pass", f"{text + ', ' if text else ''}{desc}")
         # check on the job in the background - the page is usable again right away
         self.in_thread(self.watch_job, d, queue, job, prefix=self._tl.prefix)
         return True
@@ -1160,9 +1178,11 @@ class PrinterMixin:
         while time.time() < end:
             time.sleep(2)
             if job not in run(["lpstat", "-o", queue]).stdout:
+                self.cert_mark(d, "Print job completed", "pass", "The label left the print queue")
                 return   # went through
         state = run(["lpstat", "-l", "-p", queue]).stdout.strip()
         self.set_row_status(d["key"], "⚠ Job stuck - see Activity")
+        self.cert_mark(d, "Print job completed", "fail", "The label stayed in the print queue")
         self.log("The label is still waiting in the print queue. Printer status:\n" + state +
                  "\nTry 'Clear print queue', unplug/replug the printer, then print again.")
 

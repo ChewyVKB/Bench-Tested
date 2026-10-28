@@ -520,6 +520,9 @@ class BarcodeMixin:
         GLib.idle_add(self.handle_scan, key, text)
 
     def handle_scan(self, key, text):
+        if key == self.cfg.get("cert", {}).get("asset_scanner"):
+            self.cert_asset_scanned(text)            # the asset tag scanner, not a test scan
+            return False
         info = self.scan_info(key)
         cid = match_scan(text)
         stamp = datetime.datetime.now().strftime("%H:%M:%S")

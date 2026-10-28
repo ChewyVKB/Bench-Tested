@@ -287,6 +287,7 @@ class DocScanMixin:
         os.makedirs(s["dir"], exist_ok=True)
         args.append(f"--batch={s['dir']}/page-%03d.png")
         s["pages"] = []
+        s["args"] = args
         duplex = "duplex" in (self.s_source.get_active_id() or "").lower()
         self.task(d, self.doc_scan, d, args, duplex)
         self.docscan_select(d)

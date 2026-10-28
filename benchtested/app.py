@@ -9,9 +9,10 @@ from .mic import MicMixin
 from .docscan import DocScanMixin
 from .sigpad import SigPadMixin
 from .camera import CameraMixin
+from .certs import CertMixin
 
 
-class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, SigPadMixin, CameraMixin,
+class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, SigPadMixin, CameraMixin, CertMixin,
           Gtk.Window if Gtk else object):
     def __init__(self):
         super().__init__(title=APP_TITLE)
@@ -36,6 +37,7 @@ class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, SigPadMixin, Camer
         self.docscan_init()
         self.sigpad_init()
         self.camera_init()
+        self.cert_init()
 
         hb = Gtk.HeaderBar(title=APP_TITLE, subtitle="Plug in a device to test it")
         hb.set_show_close_button(True)
@@ -46,6 +48,14 @@ class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, SigPadMixin, Camer
         b_refresh.set_tooltip_text("Look for devices again now")
         b_refresh.connect("clicked", lambda *_: self.manual_refresh())
         hb.pack_end(b_refresh)
+        b_cert = Gtk.Button.new_from_icon_name("emblem-system-symbolic", Gtk.IconSize.BUTTON)
+        b_cert.set_tooltip_text("Certificate settings: company, logo, technician, where certificates are saved")
+        b_cert.connect("clicked", lambda *_: self.cert_settings_dialog())
+        hb.pack_end(b_cert)
+        b_certs = Gtk.Button(label="Certificates")
+        b_certs.set_tooltip_text("Open the folder with all certificates and the register")
+        b_certs.connect("clicked", lambda *_: self.cert_open_folder())
+        hb.pack_end(b_certs)
         self.b_clean = Gtk.Button(label="Clean up printers…")
         self.b_clean.set_tooltip_text("Remove printers that aren't connected any more")
         self.b_clean.connect("clicked", lambda *_: self.cleanup_dialog())
@@ -111,7 +121,11 @@ class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, SigPadMixin, Camer
         self.stack.add_named(self.build_docscan_page(), "docscan")
         self.stack.add_named(self.build_sigpad_page(), "sigpad")
         self.stack.add_named(self.build_camera_page(), "camera")
-        paned.pack2(self.stack, True, False)
+        right = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        right.pack_start(self.stack, True, True, 0)
+        right.pack_start(Gtk.Separator(), False, False, 0)
+        right.pack_start(self.build_cert_bar(), False, False, 0)
+        paned.pack2(right, True, False)
 
         # ---- bottom: activity log
         frame = Gtk.Frame(label=" Activity ")
@@ -130,6 +144,7 @@ class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, SigPadMixin, Camer
         self.connect("destroy", self.on_quit)
         self.show_all()
         self.empty_hint.hide()
+        self.cert_bar.hide()
         self.refresh_devices()
         GLib.timeout_add_seconds(1, self.refresh_devices)
         self.update_sensitivity()
@@ -152,6 +167,10 @@ class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, SigPadMixin, Camer
 
     def log(self, text):
         prefix = getattr(self._tl, "prefix", "")
+        try:
+            self.cert_note(prefix, text)          # every line about a device goes on its certificate
+        except Exception:
+            pass
 
         def _do():
             buf = self.logview.get_buffer()
@@ -202,6 +221,7 @@ class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, SigPadMixin, Camer
 
         def _work():
             self._tl.prefix = f"[{short_name(d)}] "
+            self._tl.dev_key = key
             ok = None
             try:
                 ok = fn(*args)
@@ -213,9 +233,12 @@ class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, SigPadMixin, Camer
             else:
                 text = f"✓ Done {stamp}" if ok else "✗ Didn't finish - see Activity"
             self.set_row_status(key, text, busy=False)
+            self._tl.dev_key = None
 
             def _done():
                 self.busy_keys.discard(key)
+                if key == self.selected_key:
+                    self.cert_bar_refresh()
                 self.update_sensitivity()
                 return False
             GLib.idle_add(_done)
@@ -307,6 +330,7 @@ class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, SigPadMixin, Camer
             old_plug = next((d.get("plug") for d in self.devices if d["key"] == self.selected_key), None)
             first_time = self.dev_sig is None
             self.dev_sig = sig
+            self.cert_snapshot_leaving(devs)       # before the pages forget unplugged units
             self.devices = devs
             self.rebuild_rows()
             self.barcode_devices_changed(devs)
@@ -314,6 +338,8 @@ class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, SigPadMixin, Camer
             self.docscan_devices_changed(devs)
             self.sigpad_devices_changed(devs)
             self.camera_devices_changed(devs)
+            self.cert_devices_changed(devs)
+            self.cert_bar_refresh()
             if not first_time:
                 self.in_thread(self.forget_unplugged_units)
             cur = self.current()
@@ -326,6 +352,7 @@ class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, SigPadMixin, Camer
         self.mic_tick()
         self.barcode_tick()
         self.sigpad_tick()
+        self.cert_tick()
         return True
 
     def row_header(self, row, before):
@@ -451,6 +478,7 @@ class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, SigPadMixin, Camer
             self.stack.set_visible_child_name("camera")
             self.camera_select(d)
         self.update_sensitivity()
+        self.cert_bar_refresh()
 
     def update_header(self):
         d = self.current()
