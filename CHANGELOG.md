@@ -19,6 +19,7 @@ All notable changes to Bench Tested are listed here.
 - Signature pads: the drawing clears itself 4 seconds after you stop writing, like the pad's own screen. The checks stay, and Save signature still saves the last signature.
 
 ### Fixed
+- Signature pads: the right edge check now passes. It was measured against an estimated writing area that was wider than the pad (x up to 2650; the T-LBK462 stops at about 2270), and saving a signature stored that estimate.
 - Topaz BSB pads whose USB-serial chip still has the generic FTDI name and serial number (e.g. *FT232R USB UART*, serial *AH012S4C*) now show up as signature pads.
 - PowerMicII-NS units with an Interlink *FSR 4ZUSB* trackball (`214a:0002`) get the trackball check, like units with the usual trackball.
 - Nuance PowerMic 4: its buttons are now detected, and its built-in trackball's clicks count as trackball checks instead of mic buttons. Only this model is affected.

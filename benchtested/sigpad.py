@@ -15,7 +15,10 @@ except Exception:  # pragma: no cover
 
 # Topaz BSB pads: 19200 baud, 7 data bits, odd parity. 5-byte packets:
 #   [status (bit 7 set, bit 0 = pen down)] [x low 7] [x high 7] [y low 7] [y high 7]
-TOPAZ_DEFAULT_BOUNDS = (500, 350, 2650, 1050)    # x0, y0, x1, y1 - grows if the pad reports more
+# Writing area (x0, y0, x1, y1) the edge check is measured against. It grows if a pad reports
+# more. x runs to about 2270 on the T-LBK462 (measured corner to corner on a real pad); the old
+# estimate of 2650 put the right edge out of reach, so its check never passed.
+TOPAZ_DEFAULT_BOUNDS = (500, 350, 2270, 1050)
 TOPAZ_HID_BOUNDS = (500, 450, 2270, 985)
 AUTO_CLEAR_SECS = 4.0      # wipe the drawing after this long without pen input, like the pads do
 HOVER_TIMEOUT = 0.5        # hide the hover dot when the pad stops reporting the pen          # USB HID pads (06a8:0043), measured corner to corner
@@ -340,9 +343,12 @@ class SigPadMixin:
     def pad_info(self, d):
         s = self.pad_state.get(d["key"])
         if s is None:
-            b = self.cfg.get("sigpad_bounds", {}).get(pad_model(d))
+            base = list(TOPAZ_HID_BOUNDS if pad_is_hid(d) else TOPAZ_DEFAULT_BOUNDS)
+            seen = self.cfg.get("sigpad_area", {}).get(pad_model(d))     # where pens really went before
+            if seen:
+                base = [min(base[0], seen[0]), min(base[1], seen[1]), max(base[2], seen[2]), max(base[3], seen[3])]
             s = {"strokes": [], "reader": None, "state": "starting", "points": 0,
-                 "bounds": list(b or (TOPAZ_HID_BOUNDS if pad_is_hid(d) else TOPAZ_DEFAULT_BOUNDS)), "seen": None, "pen_was_down": False, "hover": None,
+                 "bounds": base, "seen": None, "pen_was_down": False, "hover": None,
                  "last_t": 0.0}
             self.pad_state[d["key"]] = s
         return s
@@ -653,6 +659,13 @@ class SigPadMixin:
         with open(path, "w") as fh:
             fh.write(svg)
         self.log(f"Saved the signature: {path}")
-        # remember the pad's real writing area for this model
-        self.cfg.setdefault("sigpad_bounds", {})[pad_model(d)] = s["bounds"]
-        save_config(self.cfg)
+        # remember how far pens really reached on this model (only real pen positions are kept,
+        # so the area can't drift wider than the pad)
+        if s["seen"]:
+            areas = self.cfg.setdefault("sigpad_area", {})
+            old = areas.get(pad_model(d))
+            v = s["seen"]
+            areas[pad_model(d)] = v if not old else [min(old[0], v[0]), min(old[1], v[1]),
+                                                       max(old[2], v[2]), max(old[3], v[3])]
+            self.cfg.pop("sigpad_bounds", None)            # old setting that could hold the estimate
+            save_config(self.cfg)
