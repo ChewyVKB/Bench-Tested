@@ -84,7 +84,8 @@ Bench-Tested/
 
 - **Audio.** The mic's own sound card is matched through sysfs and PipeWire (`pw-dump`). It's recorded and played back with GStreamer, falling back to `arecord` / `aplay`. The computer's built-in mic is never used.
 - **Buttons.** Read from evdev, plus the mic's raw HID reports (`/dev/hidraw*`). Raw reports are decoded into press and release events. A button has to be held for 40 ms to count, and analog trackball and slider data is filtered out.
-- **Trackball.** On PowerMics it's a sibling USB function, found and read alongside the main device.
+- **Trackball.** On PowerMic II/III it's a separate USB device behind the mic's own hub, found and read alongside the mic. The PowerMic 4 has it built in.
+- **Model-specific handling.** A few models need their own rules, listed in `MIC_MODELS` in `mic.py`. The PowerMic 4 (`0554:0064`) sends its buttons as one bit each in a vendor-only HID report, alongside status bytes that change on their own, so only the button bytes are read. Every other mic uses the general rules above.
 
 ## Document scanners
 

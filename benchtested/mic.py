@@ -5,13 +5,25 @@ from .common import *  # noqa: F401,F403
 from .audio import AudioDevice, play_default, write_tone
 from .gtkutil import GLib, Gtk, dim, lbl
 from .inputdev import (BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, EV_KEY, EV_REL, HidrawWatcher, InputWatcher,
-                       event_nodes, hidraw_nodes)
+                       RawBits, event_nodes, hidraw_nodes, vendor_hidraw_nodes)
 
 RAW_BASE = 100000      # buttons found in raw HID reports are numbered from here
 
 TRACKBALL_VENDORS = {"df04"}       # PowerMic's built-in trackball shows up as its own USB device
 
 BTN_NAMES = {BTN_LEFT: "Left click", BTN_RIGHT: "Right click", BTN_MIDDLE: "Middle click"}
+
+# Models that need their own handling. Every other mic uses the general rules.
+#   ball "builtin": the trackball is part of the mic itself, not a separate USB device
+#   raw_bits:       its buttons are one bit each at these byte positions of a vendor-only
+#                   HID report; the bytes before them are status that changes on its own
+MIC_MODELS = {
+    ("0554", "0064"): {"ball": "builtin", "raw_bits": range(5, 9)},     # Nuance PowerMic 4
+}
+
+
+def mic_model(d):
+    return MIC_MODELS.get((d.get("vid"), d.get("pid")), {})
 
 
 def find_trackball(d):
@@ -81,10 +93,11 @@ class MicMixin:
                 continue
             key = d["key"]
             s = self.mic_info(d)
-            tb = find_trackball(d)
+            m = mic_model(d)
+            tb = d["sysdir"] if m.get("ball") == "builtin" else find_trackball(d)
             d["trackball"] = tb
-            want = {"ev": event_nodes(d["sysdir"]) + (event_nodes(tb) if tb else []),
-                    "raw": hidraw_nodes(d["sysdir"])}
+            want = {"ev": event_nodes(d["sysdir"]) + (event_nodes(tb) if tb and tb != d["sysdir"] else []),
+                    "raw": vendor_hidraw_nodes(d["sysdir"]) if m.get("raw_bits") else hidraw_nodes(d["sysdir"])}
             changed = False
             for kind, nodes in want.items():
                 w = s["w"].get(kind)
@@ -103,9 +116,11 @@ class MicMixin:
                         nodes, lambda t, c, v, k=key: GLib.idle_add(self.mic_event, k, t, c, v),
                         lambda st, k=key: GLib.idle_add(self.mic_conn_state, k, "ev", st))
                 else:   # buttons that only show up as raw HID reports (SpeechMike and others)
+                    bits = m.get("raw_bits")
                     s["w"][kind] = HidrawWatcher(
                         nodes, lambda b, k=key: GLib.idle_add(self.mic_raw_press, k, b),
-                        lambda st, k=key: GLib.idle_add(self.mic_conn_state, k, "raw", st))
+                        lambda st, k=key: GLib.idle_add(self.mic_conn_state, k, "raw", st),
+                        decoder=(lambda b=bits: RawBits(b)) if bits else None)
                 changed = True
             s["watchers"] = [w for w in s["w"].values() if w]
             if changed and key == self.selected_key:

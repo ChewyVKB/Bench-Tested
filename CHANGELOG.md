@@ -11,6 +11,7 @@ All notable changes to Bench Tested are listed here.
 - Signature pads: the drawing clears itself 4 seconds after you stop writing, like the pad's own screen. The checks stay, and Save signature still saves the last signature.
 
 ### Fixed
+- Nuance PowerMic 4: its buttons are now detected, and its built-in trackball's clicks count as trackball checks instead of mic buttons. Only this model is affected.
 - Barcode scanners are only held while Bench Tested is the active window. In any other window (a browser, an ERP system) scanners type as normal, so the app can stay open all day.
 - Zebras whose USB connection doesn't come back after a factory reset or calibration are reconnected in software, instead of needing a replug. Needs `./install.sh` to be run again once.
 - Signature pads: the hover dot disappears when the pad stops reporting the pen, instead of staying frozen on screen.

@@ -149,12 +149,51 @@ class RawButtons:
         return presses
 
 
+class RawBits:
+    """Buttons reported one bit each at known byte positions (used for models whose
+    reports also carry status bytes, which would look like buttons to RawButtons).
+    A press counts when its bit is set and then cleared again, held >= MIN_HOLD."""
+
+    MIN_HOLD = 0.04
+
+    def __init__(self, positions):
+        self.pos = list(positions)
+        self.down, self.ids = {}, {}
+
+    def feed(self, rep, now=None):
+        now = time.time() if now is None else now
+        cur = {(i, 1 << b) for i in self.pos if i < len(rep) for b in range(8) if rep[i] >> b & 1}
+        for bit in cur - set(self.down):
+            self.down[bit] = now
+        presses = []
+        for bit in set(self.down) - cur:
+            t0 = self.down.pop(bit)
+            if now - t0 < self.MIN_HOLD:
+                continue
+            if bit not in self.ids:
+                self.ids[bit] = len(self.ids) + 1
+            presses.append(self.ids[bit])
+        return presses
+
+
+def vendor_hidraw_nodes(sysdir):
+    """/dev/hidraw* of this USB device that Linux doesn't turn into any input device
+    (vendor-specific reports only)."""
+    nodes = []
+    for h in glob.glob("/sys/class/hidraw/hidraw*"):
+        dev = os.path.realpath(h + "/device")
+        if dev.startswith(sysdir + "/") and not glob.glob(dev + "/input/input*"):
+            nodes.append("/dev/" + os.path.basename(h))
+    return sorted(nodes, key=lambda p: int(re.sub(r"\D", "", p) or 0))
+
+
 class HidrawWatcher:
     """Calls on_press(button_number) for buttons seen in raw HID reports.
     on_state gets 'listening', 'noperm' or 'none'."""
 
-    def __init__(self, nodes, on_press, on_state):
+    def __init__(self, nodes, on_press, on_state, decoder=None):
         self.nodes, self.on_press, self.on_state = nodes, on_press, on_state
+        self.decoder = decoder or RawButtons
         self.stop_flag = False
         threading.Thread(target=self._run, daemon=True).start()
 
@@ -165,7 +204,7 @@ class HidrawWatcher:
         fds, noperm = {}, False
         for n in self.nodes:
             try:
-                fds[os.open(n, os.O_RDONLY | os.O_NONBLOCK)] = RawButtons()
+                fds[os.open(n, os.O_RDONLY | os.O_NONBLOCK)] = self.decoder()
             except PermissionError:
                 noperm = True
             except OSError:
