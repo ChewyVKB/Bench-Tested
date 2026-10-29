@@ -62,7 +62,8 @@ class CertMixin:
         c.setdefault("folder", DEFAULT_DIR)
         c.setdefault("prefix", "BT")
         c.setdefault("auto_close", True)
-        c.setdefault("open_after", True)
+        c.pop("open_after", None)               # replaced by a notification (opening was the old default)
+        c.setdefault("open_pdf", False)
 
     @property
     def ccfg(self):
@@ -489,9 +490,24 @@ class CertMixin:
         save_config(self.cfg)
         self.log(f"[{short_name(d)}] Certificate {cert_id} created ({result}"
                  f"{', no asset tag' if not r['asset'] else ''}): {path}")
-        if not quiet and self.ccfg.get("open_after", True):
+        self.cert_notify(d, r, cert_id, result, auto=bool(r.get("auto")))
+        if not quiet and self.ccfg.get("open_pdf", False):
             run(["xdg-open", path], timeout=5)
         return path
+
+    def cert_notify(self, d, r, cert_id, result, auto=False):
+        """A desktop notification instead of opening the PDF."""
+        title = f"Certificate {cert_id} created - {result}"
+        body = f"{display_name(d)}\nAsset tag: {r['asset'] or 'not entered'}"
+        if auto:
+            body += "\nCreated automatically when the device was unplugged."
+        icon = {"PASS": "emblem-ok-symbolic", "FAIL": "dialog-error-symbolic"}.get(result, "dialog-warning-symbolic")
+        try:
+            subprocess.Popen(["notify-send", "--app-name=Bench Tested", f"--icon={icon}",
+                              "--urgency=" + ("normal" if result == "PASS" else "critical"), title, body],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except OSError:
+            pass                                    # no notification tool: the Activity log has it
 
     def cert_register(self, data, d, path, digest):
         """One line per certificate in a CSV that opens in Google Sheets / Excel."""
@@ -786,8 +802,9 @@ class CertMixin:
         auto.set_active(c.get("auto_close", True))
         grid.attach(auto, 0, row, 2, 1)
         row += 1
-        openafter = Gtk.CheckButton(label="Open each certificate after creating it")
-        openafter.set_active(c.get("open_after", True))
+        openafter = Gtk.CheckButton(label="Also open each certificate after creating it "
+                                          "(a notification is always shown)")
+        openafter.set_active(c.get("open_pdf", False))
         grid.attach(openafter, 0, row, 2, 1)
         box.add(grid)
         ob = Gtk.Button(label="Open certificates folder")
@@ -799,7 +816,7 @@ class CertMixin:
                 c[k] = e.get_text().strip()
             c["folder"] = folder.get_filename() or c.get("folder")
             c["auto_close"] = auto.get_active()
-            c["open_after"] = openafter.get_active()
+            c["open_pdf"] = openafter.get_active()
             if picked["path"]:
                 try:
                     pb = GdkPixbuf.Pixbuf.new_from_file_at_scale(picked["path"], 1200, 400, True)

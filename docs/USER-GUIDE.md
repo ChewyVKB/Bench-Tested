@@ -287,7 +287,7 @@ You can override the result in the dialog. The certificate then shows that the t
 - PDFs: `~/Documents/Bench Tested/Certificates/<year>/<month>/`, named `<certificate number>_<asset tag>_<model>.pdf`
 - The register: `certificate-register.csv` in the same folder, one row per certificate. It opens in Google Sheets or Excel, and each row includes a SHA-256 fingerprint of its PDF, so a changed PDF can be spotted.
 
-Click **Certificates** in the toolbar to open the folder, or **Open last** under a device page to open that unit's latest certificate.
+When a certificate is created, a desktop notification shows its number, result and asset tag; the PDF isn't opened (you can turn that back on with the gear icon). Click **Certificates** in the toolbar to open the folder, or **Open last** under a device page to open that unit's latest certificate.
 
 ---
 
