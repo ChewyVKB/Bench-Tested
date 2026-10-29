@@ -498,13 +498,17 @@ class CertMixin:
     def cert_notify(self, d, r, cert_id, result, auto=False):
         """A desktop notification instead of opening the PDF."""
         title = f"Certificate {cert_id} created - {result}"
-        body = f"{display_name(d)}\nAsset tag: {r['asset'] or 'not entered'}"
+        # one line: Ubuntu's notification banner joins lines anyway
+        body = f"{display_name(d)}  ·  Asset tag {r['asset'] or 'not entered'}"
         if auto:
-            body += "\nCreated automatically when the device was unplugged."
-        icon = {"PASS": "emblem-ok-symbolic", "FAIL": "dialog-error-symbolic"}.get(result, "dialog-warning-symbolic")
+            body += "  ·  made automatically when unplugged"
+        # colour icons shipped with the app: green check / red X / amber "!"
+        icon = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons",
+                            {"PASS": "cert-pass.png", "FAIL": "cert-fail.png"}.get(result, "cert-incomplete.png"))
         try:
-            subprocess.Popen(["notify-send", "--app-name=Bench Tested", f"--icon={icon}",
-                              "--urgency=" + ("normal" if result == "PASS" else "critical"), title, body],
+            # normal urgency for every result: Ubuntu keeps "critical" ones on screen until closed
+            subprocess.Popen(["notify-send", "--app-name=Bench Tested", f"--icon={icon}", "--urgency=normal",
+                              "--expire-time=6000", title, body],
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except OSError:
             pass                                    # no notification tool: the Activity log has it
