@@ -54,6 +54,11 @@ DOCSCAN_VENDORS = {
 # conference audio (speakerphones, expansion mics) - listed with cameras even without video
 CONF_AUDIO_VENDORS = {"046d": "Logitech", "095d": "Polycom", "047f": "Poly / Plantronics",
                       "0b0e": "Jabra", "1395": "EPOS / Sennheiser"}
+# PowerMic II and III both call themselves "PowerMicII-NS" (0554:1001). They differ in the
+# trackball part behind the mic's own hub - seen on real units:
+#   0POWM3N9    (PowerMic III): df04:0004 "HID Mouse"
+#   0POWM2N-005 (PowerMic II):  214a:0002 Interlink "FSR 4ZUSB"
+POWERMIC_BY_TRACKBALL = {"df04": "PowerMic III", "214a": "PowerMic II"}
 SKIP_VENDORS = {"df04", "214a"}   # PowerMic trackballs - shown as part of the mic
 GENERIC_FTDI = r"FT232R USB UART|FT230X Basic UART|FT231X USB UART|USB <-> Serial|USB Serial Converter"
 
@@ -384,6 +389,12 @@ def scan_usb():
             "lp": None,
             "audio_only": cat == "camera" and not any(c == "0e" for c, _s, _p in ifaces),
         })
+    for dv in devs:
+        if dv["vid"] == "0554" and dv["pid"] == "1001":
+            name = powermic_model(dv["sysdir"])
+            if name:
+                dv["usb_product"], dv["product"] = dv["product"], name
+                dv["identified_by"] = "its trackball part"
     for lp in glob.glob("/sys/class/usbmisc/lp*"):
         parent = os.path.dirname(os.path.realpath(lp + "/device"))
         for dv in devs:
@@ -403,6 +414,17 @@ def scan_usb():
     order = {c: i for i, (c, _t) in enumerate(CATEGORIES)}
     devs.sort(key=lambda d: (order.get(d["category"], 99), d["brand"], d["product"], d["key"]))
     return devs
+
+
+def powermic_model(sysdir):
+    """'PowerMic II' / 'PowerMic III' from the trackball behind the mic's hub, or None."""
+    parent = os.path.dirname(sysdir)
+    for x in glob.glob(parent + "/*"):
+        if os.path.realpath(x) != sysdir and os.path.isdir(x):
+            name = POWERMIC_BY_TRACKBALL.get(read_file(x + "/idVendor").lower())
+            if name:
+                return name
+    return None
 
 
 def display_name(dv):

@@ -252,7 +252,10 @@ class CertMixin:
                   ("USB ID", f"{d['vid']}:{d['pid']}")]
         details, checks, required, sig, images = list(usb_extra(d)), [], [], None, []
         if r.get("model_in"):
-            details.insert(0, ("Model name reported over USB", d["product"]))
+            details.insert(0, ("Model name reported over USB", d.get("usb_product") or d["product"]))
+        elif d.get("usb_product"):
+            details.insert(0, ("Model name reported over USB", d["usb_product"]))
+            details.insert(1, ("Model identified from", d.get("identified_by") or ""))
 
         def add(name, ok, detail="", need=True):
             st = "pass" if ok else ("fail" if ok is False else "skip")

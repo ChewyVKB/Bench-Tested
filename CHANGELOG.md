@@ -19,6 +19,7 @@ All notable changes to Bench Tested are listed here.
 - Signature pads: the drawing clears itself 4 seconds after you stop writing, like the pad's own screen. The checks stay, and Save signature still saves the last signature.
 
 ### Fixed
+- Dictation mics: PowerMic II and PowerMic III both report themselves as *PowerMicII-NS*. They're now told apart by their trackball part (PowerMic III: `df04:0004`; PowerMic II: Interlink `214a:0002`). Certificates show the identified model and the name the mic reported.
 - Signature pads: the right edge check now passes. It was measured against an estimated writing area that was wider than the pad (x up to 2650; the T-LBK462 stops at about 2270), and saving a signature stored that estimate.
 - Topaz BSB pads whose USB-serial chip still has the generic FTDI name and serial number (e.g. *FT232R USB UART*, serial *AH012S4C*) now show up as signature pads.
 - PowerMicII-NS units with an Interlink *FSR 4ZUSB* trackball (`214a:0002`) get the trackball check, including its left and right clicks, like units with the usual trackball.
