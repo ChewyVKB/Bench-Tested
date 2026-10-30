@@ -50,7 +50,11 @@ DOCSCAN_VENDORS = {
     "04b8": ("Epson", r"\bDS-|scanner"),
     "040a": ("Kodak Alaris", r"scanner|\bi\d{3,4}\b|\bS\d{4}"),
     "0638": ("Avision", r"scanner|\bAD\d"),
+    "20ec": ("Ambir", r"DS\d|scan"),
 }
+# document scanners Ubuntu's scanner support (SANE) has no driver for: listed so they can be
+# certified, with the scan itself confirmed by the technician on another computer
+NO_LINUX_DRIVER = {"20ec": "Ambir only provides drivers for Windows and Mac"}
 # conference audio (speakerphones, expansion mics) - listed with cameras even without video
 CONF_AUDIO_VENDORS = {"046d": "Logitech", "095d": "Polycom", "047f": "Poly / Plantronics",
                       "0b0e": "Jabra", "1395": "EPOS / Sennheiser"}
@@ -87,8 +91,9 @@ def run(cmd, timeout=60, **kw):
 
 def read_file(path):
     try:
-        with open(path) as f:
-            return f.read().strip()
+        with open(path, errors="replace") as f:
+            # some devices pad their USB name with 0xFF bytes (e.g. Ambir "DS820ix\xff\xff")
+            return f.read().strip().rstrip("\u00ff\ufffd\x00 ").strip()
     except OSError:
         return ""
 
@@ -388,6 +393,7 @@ def scan_usb():
             "ifaces": ifaces,
             "lp": None,
             "audio_only": cat == "camera" and not any(c == "0e" for c, _s, _p in ifaces),
+            "no_linux_driver": NO_LINUX_DRIVER.get(vid) if cat == "docscan" else None,
         })
     for dv in devs:
         if dv["vid"] == "0554" and dv["pid"] == "1001":

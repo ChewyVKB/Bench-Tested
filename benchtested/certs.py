@@ -357,6 +357,10 @@ class CertMixin:
         pages = s["pages"]
         blank = [i + 1 for i, p in enumerate(pages) if p[2] and p[2]["blank"]]
         streak = [i + 1 for i, p in enumerate(pages) if p[2] and p[2]["streaks"]]
+        if d.get("no_linux_driver") and not pages:
+            details.append(("Linux scanning", "Not possible - " + d["no_linux_driver"]))
+            add("Feeds and scans pages (in Bench Tested)", None, "No Linux driver for this model", need=False)
+            return None, []
         add("Feeds and scans pages", True if pages else None, f"{len(pages)} pages scanned" if pages else "")
         if pages:
             add("No streaks (dirty glass / bad sensor)", not streak,
@@ -414,11 +418,17 @@ class CertMixin:
         photos = [f for f in r["files"] if " - photo " in f]
         return None, [("Photo taken during the test", p) for p in photos[-2:]]
 
+    def manual_checks(self, d):
+        checks = list(MANUAL_CHECKS.get(d["category"], []))
+        if d.get("no_linux_driver"):
+            checks.insert(0, ("Scans correctly on a Windows / Mac computer (no Linux driver)", True))
+        return checks
+
     # ---------------------------------------------------------- result
     def cert_result(self, d, r, checks, required):
         manual = r["manual"]
         statuses = {n: st for n, st, _ in checks}
-        for name, need in MANUAL_CHECKS.get(d["category"], []):
+        for name, need in self.manual_checks(d):
             v = manual.get(name)
             statuses[name] = "pass" if v is True else "fail" if v is False else "skip"
             if need:
@@ -449,7 +459,7 @@ class CertMixin:
         details = list(details)
         auto_result = self.cert_result(d, r, checks, required)
         result = auto_result if r["result"] == "auto" else r["result"]
-        for name, _need in MANUAL_CHECKS.get(d["category"], []):
+        for name, _need in self.manual_checks(d):
             v = r["manual"].get(name)
             checks.append((name, "pass" if v is True else "fail" if v is False else "skip",
                            "Confirmed by technician" if v is not None else ""))
@@ -680,7 +690,7 @@ class CertMixin:
         grid.attach(auto_box, 1, row, 1, 1)
         row += 1
         manual_w = {}
-        for name, need in MANUAL_CHECKS.get(d["category"], []):
+        for name, need in self.manual_checks(d):
             c = Gtk.ComboBoxText()
             for vid, text in (("none", "Not checked"), ("yes", "Yes"), ("no", "No")):
                 c.append(vid, text)

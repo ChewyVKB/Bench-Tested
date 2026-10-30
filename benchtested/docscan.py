@@ -222,6 +222,11 @@ class DocScanMixin:
         self.s_sub.set_text(f"Serial {d['serial'] or '?'}  ·  USB id {d['vid']}:{d['pid']}")
         if self.sane_loading or self.sane_cache is None:
             self.s_status.set_text("Looking for the scanner… (this takes a few seconds)")
+        elif not s["sane"] and d.get("no_linux_driver"):
+            self.s_status.set_text(f"There's no Linux driver for this scanner ({d['no_linux_driver']}), "
+                                   "so it can't scan from Ubuntu. It's listed so it still gets a certificate: "
+                                   "test-scan it on a Windows or Mac computer, then confirm that in "
+                                   "'Create certificate…' below.")
         elif not s["sane"]:
             self.s_status.set_text("Ubuntu's scanner support doesn't see this scanner. Check it's switched "
                                    "on, then click 'Look for scanner again'. If it still isn't found, "
