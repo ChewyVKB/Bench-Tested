@@ -225,6 +225,8 @@ class App(PrinterMixin, BarcodeMixin, MicMixin, DocScanMixin, SigPadMixin, Camer
             ok = None
             try:
                 ok = fn(*args)
+            except DeviceProblem as e:
+                self.log(str(e))
             except Exception:
                 self.log("Something went wrong:\n" + traceback.format_exc())
             stamp = datetime.datetime.now().strftime("%H:%M")

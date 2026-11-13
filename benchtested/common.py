@@ -89,6 +89,11 @@ def run(cmd, timeout=60, **kw):
         return subprocess.CompletedProcess(cmd, 127, "", str(e))
 
 
+class DeviceProblem(Exception):
+    """A problem with the device that has a plain-language explanation: shown in the Activity
+    log as-is, without a technical traceback."""
+
+
 def read_file(path):
     try:
         with open(path, errors="replace") as f:

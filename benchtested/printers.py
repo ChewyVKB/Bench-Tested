@@ -632,6 +632,35 @@ class PrinterMixin:
             return False
         GLib.idle_add(_do)
 
+    def zwrite(self, d, dev, data):
+        """Send data to a Zebra. When the USB connection errors (e.g. "Input/output error":
+        the printer dropped or stalled the connection, often after a reset or an error on
+        the printer), retry, then reconnect it in software and retry once more.
+        Returns the device path that worked (it can change after a reconnect)."""
+        try:
+            zebra_write(dev, data)
+            return dev
+        except OSError as e:
+            first = e
+        time.sleep(1)
+        try:                                   # Linux reports a failed earlier transfer once
+            zebra_write(dev, data)
+            return dev
+        except OSError:
+            pass
+        self.log(f"The printer didn't accept data over USB ({first.strerror}) - reconnecting it…")
+        new = self.zebra_reconnect(d, reset=True)
+        if new:
+            try:
+                zebra_write(new, data)
+                return new
+            except OSError:
+                pass
+        raise DeviceProblem(
+            "The printer still isn't accepting data over USB. Check it isn't showing an error "
+            "(red or flashing light, head or lid open, out of labels or ribbon), then turn it off "
+            "and on and try again.")
+
     def zebra_reconnect(self, d, reset=False):
         """Replug the printer in software and wait for /dev/usb/lp* to come back: first by
         re-attaching its driver, then if needed by resetting its USB connection.
@@ -744,7 +773,7 @@ class PrinterMixin:
                 D = int(dpi_id) if dpi_id != "auto" else 203
             w, h = (float(v) for v in size_id.split("x"))
             W, H = int(w * D), int(h * D)
-            zebra_write(dev, epl_label(W, H, D))
+            dev = self.zwrite(d, dev, epl_label(W, H, D))
             self.log(f"Sent EPL test label ({size_text(W, H, D)}, {D} dpi).")
             self.cert_mark(d, "Test label sent", "pass", f"EPL label, {size_text(W, H, D)}, {D} dpi")
             return True
@@ -756,7 +785,7 @@ class PrinterMixin:
             secs = 75
         elif prep == "cal":
             self.log("Calibrating… the printer will feed a few labels.")
-            zebra_write(dev, "~JC")
+            dev = self.zwrite(d, dev, "~JC")
             secs = 60
         time.sleep(3)
         self.log("Waiting for the printer to finish and report its label size…")
@@ -794,20 +823,20 @@ class PrinterMixin:
             return False
         serial = info.get("SERIAL NUMBER", d["serial"])
         usage = info.get("TOTAL USAGE", "")
-        zebra_write(dev, zpl_label(W, H, D, serial, usage))
+        dev = self.zwrite(d, dev, zpl_label(W, H, D, serial, usage))
         self.log("Sent full-size test label.")
         self.cert_mark(d, "Test label sent", "pass", f"Full-size label {size_text(W, H, D)} with printhead check band")
         return True
 
     def _factory_reset(self, d, dev):
-        zebra_write(dev, "^XA^JUF^XZ")       # load factory defaults (printer re-measures labels)
+        dev = self.zwrite(d, dev, "^XA^JUF^XZ")       # load factory defaults (printer re-measures labels)
         time.sleep(3)
         if not os.path.exists(dev):
             again = self.find_again(d["key"], "Zebra")
             dev = again["lp"] if again else dev
         try:
-            zebra_write(dev, "^XA^JUS^XZ")   # save, so it sticks after a power cycle
-        except OSError:
+            dev = self.zwrite(d, dev, "^XA^JUS^XZ")   # save, so it sticks after a power cycle
+        except (OSError, DeviceProblem):
             self.log("Couldn't save the factory settings - the printer may have restarted.")
 
     def zebra_info(self, d):
@@ -839,7 +868,7 @@ class PrinterMixin:
         dev = self.zebra_dev(d)
         if not dev:
             return False
-        zebra_write(dev, "U\n" if self.opts(d)["lang"] == "EPL" else "~WC")
+        dev = self.zwrite(d, dev, "U\n" if self.opts(d)["lang"] == "EPL" else "~WC")
         self.log("Sent: print configuration label.")
         self.cert_mark(d, "Configuration label printed", "info", "Printer's own configuration label")
         return True
@@ -866,7 +895,7 @@ class PrinterMixin:
         if not dev:
             return False
         self.log("Calibrating… the printer will feed a few labels.")
-        zebra_write(dev, "~JC")
+        dev = self.zwrite(d, dev, "~JC")
         time.sleep(3)
         dev, det = self.zebra_wait_detect(d, 60)
         if det:

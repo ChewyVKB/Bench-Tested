@@ -35,6 +35,7 @@
 | "not available as /dev/usb/lp*" | Bench Tested reconnects the printer by itself. If it says it couldn't, run `./install.sh` again, or replug the printer. Still nothing? Run `sudo modprobe usblp`. |
 | "Couldn't read the label size" after a factory reset | The printer restarts its USB connection after a reset, and Ubuntu sometimes doesn't reconnect it. Bench Tested now reconnects it automatically; if you still see this, run `./install.sh` again. |
 | "No permission to use /dev/usb/lp…" | Run `sudo usermod -aG lp $USER`, then log out and back in. |
+| "The printer still isn't accepting data over USB" | The printer is in an error state or its USB connection is stuck. Check for a red or flashing light, an open head or lid, or no labels or ribbon. Turn it off and on, then try again. |
 | Wrong label size detected | Run **Calibrate**, then print again. Or pick the size by hand under **Label size**. |
 | Prints garbage or the raw code | Switch **Printer language** to the other setting (ZPL or EPL). |
 | Faults (red light) partway through a label | Usually a weak or non-original power supply. Try a genuine Zebra power brick. |
