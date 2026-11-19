@@ -5,6 +5,7 @@ All notable changes to Bench Tested are listed here.
 ## [Unreleased]
 
 ### Added
+- Dictation mics: Olympus RecMic models (USB vendor `07b4`, e.g. RM-4010P) are detected.
 - **Test certificates.** A PDF for every unit, pass or fail:
   - asset tag (scanned into the Asset tag box with any scanner, or typed) and certificate number
   - make, model, serial number and everything the device reports about itself

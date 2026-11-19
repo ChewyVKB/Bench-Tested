@@ -39,8 +39,9 @@ CATEGORY_TITLES = dict(CATEGORIES)
 
 PRINTER_VENDORS = {"0a5f": "Zebra", "0922": "Dymo"}
 # dictation mics: vendor -> name (product name checked too)
-MIC_VENDORS = {"0554": "Nuance", "0911": "Philips"}
-MIC_NAMES = r"powermic|speechmike|speechone|dictation|recmic|foot ?control"
+MIC_VENDORS = {"0554": "Nuance", "0911": "Philips", "07b4": "Olympus"}
+# Olympus RecMic models report only their model number, e.g. "RM-4010P"
+MIC_NAMES = r"powermic|speechmike|speechone|dictation|recmic|foot ?control|\bRM-\d{4}"
 # document scanners: vendor -> (name, product pattern)
 DOCSCAN_VENDORS = {
     "04c5": ("Fujitsu", r"fi-|scansnap|scanner"),

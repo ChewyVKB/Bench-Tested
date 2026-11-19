@@ -155,7 +155,7 @@ Most scanners can be reset by scanning a special barcode from their manual. Benc
 
 ## Dictation mics
 
-Works with Nuance PowerMic II / III / 4, Philips SpeechMike and similar dictation mics.
+Works with Nuance PowerMic II / III / 4, Philips SpeechMike, Olympus RecMic and similar dictation mics.
 
 The page has three sections.
 
