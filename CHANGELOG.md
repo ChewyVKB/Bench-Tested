@@ -21,6 +21,7 @@ All notable changes to Bench Tested are listed here.
 - Signature pads: the drawing clears itself 4 seconds after you stop writing, like the pad's own screen. The checks stay, and Save signature still saves the last signature.
 
 ### Fixed
+- Signature pads: the bottom edge check on USB HID pads (e.g. T-LBK462-HSB-R) passes again. All HID models share one USB id and name, so the writing area remembered for them mixed different models and misreads and kept growing. It's no longer remembered for pads without a serial number, the old one is cleared, the default matches pads measured corner to corner, and single misread points far outside the pad are ignored.
 - Zebra: an "Input/output error" while sending to the printer (seen on a ZD621 during a factory reset) no longer stops the test with a technical error. The app retries, reconnects the printer in software and tries again; if it still fails, it says what to check on the printer.
 - Document scanners: Ambir scanners (USB vendor `20ec`, e.g. ImageScan Pro 820ix / DS820ix) are listed. There's no Linux driver for them, so the page says so and the certificate asks the technician to confirm a test scan on a Windows or Mac computer. Device names padded with 0xFF bytes are cleaned up.
 - Dictation mics: PowerMic II and PowerMic III both report themselves as *PowerMicII-NS*. They're now told apart by their trackball part (PowerMic III: `df04:0004`; PowerMic II: Interlink `214a:0002`). Certificates show the identified model and the name the mic reported.

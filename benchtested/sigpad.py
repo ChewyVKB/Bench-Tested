@@ -19,7 +19,10 @@ except Exception:  # pragma: no cover
 # more. x runs to about 2270 on the T-LBK462 (measured corner to corner on a real pad); the old
 # estimate of 2650 put the right edge out of reach, so its check never passed.
 TOPAZ_DEFAULT_BOUNDS = (500, 350, 2270, 1050)
-TOPAZ_HID_BOUNDS = (500, 450, 2270, 985)
+# USB HID pads (06a8:0043), measured corner to corner on real pads: a "Topaz HID Tablet"
+# reached x 500-2271, y 450-986; a T-LBK462-HSB-R reached x 500-2302, y 450-1009.
+TOPAZ_HID_BOUNDS = (500, 450, 2300, 1005)
+GLITCH = 0.12     # a point this far outside the known area (share of its size) is a misread, not the pad
 AUTO_CLEAR_SECS = 4.0      # wipe the drawing after this long without pen input, like the pads do
 HOVER_TIMEOUT = 0.5        # hide the hover dot when the pad stops reporting the pen          # USB HID pads (06a8:0043), measured corner to corner
 PROOF_DIR = os.path.expanduser("~/Pictures/Bench Tested")
@@ -85,6 +88,12 @@ def port_users(node):
 def pad_model(d):
     """Per-model key for remembered settings (the serial chip's name tells BSB and eSign pads apart)."""
     return (d.get("serial") or "") + "|" + norm(d.get("product", "")) or "topaz"
+
+
+def pad_area_sane(area, base):
+    """A remembered area is only used if it's close to the expected size for that kind of pad."""
+    bw, bh = base[2] - base[0], base[3] - base[1]
+    return (area[2] - area[0]) <= bw * (1 + 2 * GLITCH) and (area[3] - area[1]) <= bh * (1 + 2 * GLITCH)
 
 
 def tty_nodes(sysdir):
@@ -319,6 +328,12 @@ class SigPadMixin:
 
     def sigpad_init(self):
         self.pad_state = {}
+        # areas remembered for pads that can't be told apart (USB HID pads have no serial
+        # number, and every HID model has the same id and name) mixed different models and
+        # misreads, and only ever grew - drop them
+        areas = self.cfg.get("sigpad_area", {})
+        for k in [k for k in areas if k.startswith("|")]:
+            del areas[k]
         GLib.timeout_add(250, self.pad_idle_tick)
 
     def pad_idle_tick(self):
@@ -344,8 +359,11 @@ class SigPadMixin:
         s = self.pad_state.get(d["key"])
         if s is None:
             base = list(TOPAZ_HID_BOUNDS if pad_is_hid(d) else TOPAZ_DEFAULT_BOUNDS)
-            seen = self.cfg.get("sigpad_area", {}).get(pad_model(d))     # where pens really went before
-            if seen:
+            # where pens really went before - only for pads with a serial number, which is the
+            # only way to know it's the same kind of pad (or the very same unit)
+            seen = self.cfg.get("sigpad_area", {}).get(pad_model(d)) if d.get("serial") else None
+            if seen and not pad_area_sane(seen, base):
+                seen = None
                 base = [min(base[0], seen[0]), min(base[1], seen[1]), max(base[2], seen[2]), max(base[3], seen[3])]
             s = {"strokes": [], "reader": None, "state": "starting", "points": 0,
                  "bounds": base, "seen": None, "pen_was_down": False, "hover": None,
@@ -434,7 +452,10 @@ class SigPadMixin:
                 s["hover"] = (x, y) if x >= 0 else None      # -1 = pen out of range
                 continue
             s["hover"] = None
-            if x < b[0] or y < b[1] or x > b[2] or y > b[3]:    # pad reports a bigger area
+            if x < b[0] or y < b[1] or x > b[2] or y > b[3]:    # outside the area known so far
+                w, h = b[2] - b[0], b[3] - b[1]
+                if x < b[0] - w * GLITCH or x > b[2] + w * GLITCH or y < b[1] - h * GLITCH or y > b[3] + h * GLITCH:
+                    continue                   # far outside: a misread, don't draw it or grow the area
                 b[0], b[1], b[2], b[3] = min(b[0], x), min(b[1], y), max(b[2], x), max(b[3], y)
             if not s["pen_was_down"] or not s["strokes"]:
                 s["strokes"].append([])
@@ -661,7 +682,7 @@ class SigPadMixin:
         self.log(f"Saved the signature: {path}")
         # remember how far pens really reached on this model (only real pen positions are kept,
         # so the area can't drift wider than the pad)
-        if s["seen"]:
+        if s["seen"] and d.get("serial"):
             areas = self.cfg.setdefault("sigpad_area", {})
             old = areas.get(pad_model(d))
             v = s["seen"]
